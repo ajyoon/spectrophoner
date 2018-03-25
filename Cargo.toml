@@ -1,0 +1,6 @@
+[package]
+name = "spectrophone"
+version = "0.1.0"
+authors = ["Andrew Yoon <ayoon@toasttab.com>"]
+
+[dependencies]
