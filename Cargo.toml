@@ -5,3 +5,5 @@ authors = ["Andrew Yoon <ayoon@toasttab.com>"]
 
 [dependencies]
 time = "*"
+portaudio = "0.7.0"
+libc = "0.2.39"
