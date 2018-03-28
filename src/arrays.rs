@@ -16,10 +16,10 @@ fn unsafe_memcpy(write_ptr: usize, src_ptr: usize, bytes: usize) {
 }
 
 
-pub fn roll_vec(src_vec: &Vec<i16>, src_offset: usize, elements: usize) -> Vec<i16> {
-    let element_size = mem::size_of::<i16>();
+pub fn roll_vec<T>(src_vec: &Vec<T>, src_offset: usize, elements: usize) -> Vec<T> {
+    let element_size = mem::size_of::<T>();
     let roll_offset = src_offset % src_vec.len();
-    let mut rolled = Vec::<i16>::with_capacity(elements);
+    let mut rolled = Vec::<T>::with_capacity(elements);
 
     let mut src_ptr;
     let mut write_ptr = rolled.as_slice().as_ptr() as usize;
@@ -87,5 +87,12 @@ mod tests {
         let original = vec![1, 2, 3];
         let rolled = roll_vec(&original, 1, 9);
         assert_eq!(rolled, [2, 3, 1, 2, 3, 1, 2, 3, 1]);
+    }
+
+    #[test]
+    fn with_head_body_and_tail_multiple_bodies_different_dtype() {
+        let original = vec![1., 2., 3.];
+        let rolled = roll_vec(&original, 1, 9);
+        assert_eq!(rolled, [2., 3., 1., 2., 3., 1., 2., 3., 1.]);
     }
 }
