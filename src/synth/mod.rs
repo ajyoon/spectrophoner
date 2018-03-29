@@ -2,8 +2,8 @@ extern crate libc;
 
 use std::f32::consts;
 
-use util::PosF32;
-use arrays;
+use ::util::PosF32;
+use ::arrays;
 
 const TWO_PI: f32 = consts::PI * 2.;
 const SINGLE_SIGNAL_MIN: f32 = -1.;
