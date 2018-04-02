@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 
 pub struct Chunk {
-    start_sample: u32,
-    sender_id: u16,
-    samples: Vec<f32>
+    pub start_sample: usize,
+    pub sender_id: u16,
+    pub samples: Vec<f32>
 }
 
 impl PartialEq for Chunk {
