@@ -8,11 +8,14 @@ use std::cmp;
 use chunk::Chunk;
 
 const MIX_CHUNK_LEN: usize = 1024;
+const THREAD_SLEEP_DUR: Duration = Duration::from_millis(10);
 
 // Infinitely loop and receive chunks from a map of receivers,
 // placing their chunks into a priority queue.
-fn collect_chunks(receivers: HashMap<u16, Receiver<Chunk>>,
-                  collection_queue: Arc<Mutex<BinaryHeap<Chunk>>>) {
+fn collect_chunks(
+    receivers: HashMap<u16, Receiver<Chunk>>,
+    collection_queue: Arc<Mutex<BinaryHeap<Chunk>>>,
+) {
     loop {
         // receive chunks
         for receiver in receivers.values() {
@@ -27,10 +30,11 @@ fn build_processed_by_sender_map(sender_ids: Vec<u16>) -> HashMap<u16, usize> {
     sender_ids.iter().map(|id| (*id, 0)).collect()
 }
 
-fn mix_chunks<'a>(chunks_queue: Arc<Mutex<BinaryHeap<Chunk>>>,
-              uncompressed_chunk_sender: Sender<Vec<f32>>,
-              sender_ids: Vec<u16>) {
-    let thread_sleep_dur = Duration::from_millis(10);
+fn mix_chunks<'a>(
+    chunks_queue: Arc<Mutex<BinaryHeap<Chunk>>>,
+    uncompressed_chunk_sender: Sender<Vec<f32>>,
+    sender_ids: Vec<u16>,
+) {
     let mut processed_by_sender = build_processed_by_sender_map(sender_ids);
     let mut current_chunk_start = 0;
     let mut current_chunk_end = current_chunk_start + MIX_CHUNK_LEN;
@@ -45,7 +49,7 @@ fn mix_chunks<'a>(chunks_queue: Arc<Mutex<BinaryHeap<Chunk>>>,
                     // Place back in the queue, drop queue lock, and sleep
                     locked_chunks_queue.push(chunk);
                     drop(locked_chunks_queue);
-                    thread::sleep(thread_sleep_dur);
+                    thread::sleep(THREAD_SLEEP_DUR);
                     continue;
                 }
 
@@ -91,13 +95,30 @@ fn mix_chunks<'a>(chunks_queue: Arc<Mutex<BinaryHeap<Chunk>>>,
             None => {
                 // Found no chunk. Drop queue lock and sleep.
                 drop(locked_chunks_queue);
-                thread::sleep(thread_sleep_dur);
+                thread::sleep(THREAD_SLEEP_DUR);
             }
         }
     }
 }
 
-pub fn mix(receivers: HashMap<u16, Receiver<Chunk>>) -> Receiver<Vec<i16>> {
+fn compress(
+    uncompressed_chunk_receiver: Receiver<Vec<f32>>,
+    compressed_chunk_sender: Sender<Vec<i16>>,
+    expected_max_amp: f32,
+) {
+    for chunk in uncompressed_chunk_receiver {
+        compressed_chunk_sender
+            .send(
+                chunk
+                    .iter()
+                    .map(|sample| ((sample / expected_max_amp) * 32767.) as i16)
+                    .collect::<Vec<i16>>(),
+            )
+            .unwrap();
+    }
+}
+
+pub fn mix(receivers: HashMap<u16, Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<Vec<i16>> {
     let chunks_queue = Arc::new(Mutex::new(BinaryHeap::new()));
     let receiver_ids = receivers.keys().map(|key| *key).collect::<Vec<u16>>();
     let chunks_queue_pusher_ref = Arc::clone(&chunks_queue);
@@ -114,10 +135,39 @@ pub fn mix(receivers: HashMap<u16, Receiver<Chunk>>) -> Receiver<Vec<i16>> {
 
     let (mixed_chunk_sender, mixed_chunk_receiver) = channel::<Vec<i16>>();
     thread::spawn(move || {
-        for chunk in uncompressed_chunk_receiver {
-
-        }
+        compress(
+            uncompressed_chunk_receiver,
+            mixed_chunk_sender,
+            expected_max_amp,
+        );
     });
 
     mixed_chunk_receiver
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compress() {
+        let (uncompressed_chunk_sender, uncompressed_chunk_receiver) = channel::<Vec<f32>>();
+        let (mixed_chunk_sender, mixed_chunk_receiver) = channel::<Vec<i16>>();
+
+        uncompressed_chunk_sender.send(vec![-100., 0.]).unwrap();
+        uncompressed_chunk_sender.send(vec![100., 0.]).unwrap();
+        drop(uncompressed_chunk_sender);
+
+        compress(
+            uncompressed_chunk_receiver,
+            mixed_chunk_sender,
+            100.,
+        );
+
+        let first_mixed_chunk = mixed_chunk_receiver.recv().unwrap();
+        let last_mixed_chunk = mixed_chunk_receiver.recv().unwrap();
+
+        assert_eq!(first_mixed_chunk, vec![-32767, 0]);
+        assert_eq!(last_mixed_chunk, vec![32767, 0]);
+    }
 }
