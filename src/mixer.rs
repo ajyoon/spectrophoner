@@ -149,6 +149,39 @@ pub fn mix(receivers: HashMap<u16, Receiver<Chunk>>, expected_max_amp: f32) -> R
 mod tests {
     use super::*;
 
+    use rand::{thread_rng, Rng};
+
+    #[test]
+    fn test_collect_chunks() {
+        // Set up receivers
+        let mut receivers: HashMap<u16, Receiver<Chunk>> = HashMap::new();
+
+        let (sender_0, receiver_0) = channel::<Chunk>();
+        let (sender_1, receiver_1) = channel::<Chunk>();
+        receivers.insert(0, receiver_0);
+        receivers.insert(1, receiver_1);
+
+        // Set up chunks_queue
+        let chunks_queue = Arc::new(Mutex::new(BinaryHeap::new()));
+        //let receiver_ids = receivers.keys().map(|key| *key).collect::<Vec<u16>>();
+
+        let chunks_queue_pusher_ref = Arc::clone(&chunks_queue);
+        thread::spawn(move || {
+            collect_chunks(receivers, chunks_queue_pusher_ref);
+        });
+
+        let later_chunk_from_sender_0 = chunk_with_unique_samples(100, 0);
+        let earlier_chunk_from_sender_1 = chunk_with_unique_samples(0, 1);
+
+        sender_0.send(later_chunk_from_sender_0).unwrap();
+        sender_1.send(earlier_chunk_from_sender_1).unwrap();
+
+        wait_a_smidge();  // so collector has time to process the chunks
+
+        assert_eq!(chunks_queue.lock().unwrap().pop().unwrap().start_sample, 0);
+        assert_eq!(chunks_queue.lock().unwrap().pop().unwrap().start_sample, 100);
+    }
+
     #[test]
     fn test_compress() {
         let (uncompressed_chunk_sender, uncompressed_chunk_receiver) = channel::<Vec<f32>>();
@@ -169,5 +202,23 @@ mod tests {
 
         assert_eq!(first_mixed_chunk, vec![-32767, 0]);
         assert_eq!(last_mixed_chunk, vec![32767, 0]);
+    }
+
+    /// Generate a test chunk with 3 randomly generated samples
+    fn chunk_with_unique_samples(start_sample: usize, sender_id: u16) -> Chunk {
+        let mut rng = thread_rng();
+        let mut samples = Vec::<f32>::new();
+        for _ in 0..3 {
+            samples.push(rng.gen());
+        }
+        Chunk {
+            start_sample,
+            sender_id,
+            samples
+        }
+    }
+
+    fn wait_a_smidge() {
+        thread::sleep(Duration::from_millis(25));
     }
 }

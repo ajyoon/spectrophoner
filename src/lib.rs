@@ -1,3 +1,5 @@
+extern crate rand;
+
 mod util;
 mod synth;
 mod arrays;

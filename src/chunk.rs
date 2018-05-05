@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+#[derive(Debug)]
 pub struct Chunk {
     pub start_sample: usize,
     pub sender_id: u16,
