@@ -4,6 +4,7 @@ use std::f32::consts;
 
 use ::util::PosF32;
 use ::arrays;
+use ::sample_generator::SampleGenerator;
 
 const TWO_PI: f32 = consts::PI * 2.;
 const SINGLE_SIGNAL_MIN: f32 = -1.;
@@ -56,11 +57,7 @@ impl PeriodGenerator for Waveform {
     }
 }
 
-trait SampleGenerator {
-    fn get_samples(&mut self, num: u32, amplitude: f32) -> Vec<f32>;
-}
-
-struct Oscillator {
+pub struct Oscillator {
     period_cache: Vec<f32>,
     phase: usize,
 }
