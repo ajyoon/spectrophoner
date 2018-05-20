@@ -1,3 +1,4 @@
+#[macro_use(array)]
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -10,9 +11,11 @@ use synth::Oscillator;
 /// Type alias for image channel identifiers
 type ImgChannelId = u16;
 
-/// Type alias for a map between image channel ids
-/// and 2d arrays of greyscale pixels.
-type ImgChannels = HashMap<ImgChannelId, Array2<u8>>;
+/// A multiplexed image data packet containing multiple 8-bit image channels
+///
+/// This is a type-alias for a hashmap from channel ids to image data
+/// represented as a 2D array of u8's.
+type ImagePacket = HashMap<ImgChannelId, Array2<u8>>;
 
 pub struct SectionInterpreter {
     oscillator: Oscillator,
@@ -27,7 +30,7 @@ type SectionInterpreterGenerator =
     fn(y_pos_ratio: f32, height_ratio: f32, total_img_height: usize) -> Vec<SectionInterpreter>;
 
 pub struct ImgInterpreter {
-    img_channels_receiver: Receiver<ImgChannels>,
+    img_channels_receiver: Receiver<ImagePacket>,
     samples_sender: Sender<Vec<f32>>,
     samples_per_img_chunk: usize,
     channel_handlers: HashMap<ImgChannelId, Vec<SectionInterpreter>>,
@@ -45,7 +48,11 @@ pub struct ImgChannelMetadata {
 }
 
 fn amplitude_from_img_data(img_data: &Array2<u8>) -> f32 {
-    (img_data.scalar_sum() as f32 / img_data.len() as f32) / (u8::max_value() as f32)
+    let mut sum = 0.0;
+    for val in img_data {
+        sum += *val as f32;
+    }
+    (sum / img_data.len() as f32) / (u8::max_value() as f32)
 }
 
 impl SectionInterpreter {
@@ -58,7 +65,7 @@ impl SectionInterpreter {
 impl ImgInterpreter {
     pub fn new(
         img_channels_metadata: Vec<ImgChannelMetadata>,
-        img_channels_receiver: Receiver<ImgChannels>,
+        img_channels_receiver: Receiver<ImagePacket>,
         samples_sender: Sender<Vec<f32>>,
         samples_per_img_chunk: usize,
         section_interpreter_generators: HashMap<ImgChannelId, SectionInterpreterGenerator>,
@@ -98,6 +105,40 @@ impl ImgInterpreter {
                     mixer::add_samples(mixed_samples.as_mut_slice(), section_samples.as_slice());
                 }
             }
+            &self.samples_sender.send(mixed_samples);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_almost_eq(left: f32, right: f32) {
+        const F32_EPSILON: f32 = 1.0e-6;
+        assert!(
+            (left - right).abs() < F32_EPSILON,
+            "{} is not approximately equal to {}.",
+            left,
+            right,
+        );
+    }
+
+    #[test]
+    fn amplitude_from_img_data_all_zeros() {
+        let img_data = array![[0, 0], [0, 0]];
+        assert_almost_eq(amplitude_from_img_data(&img_data), 0.);
+    }
+
+    #[test]
+    fn amplitude_from_img_data_all_max() {
+        let img_data = array![[255, 255], [255, 255]];
+        assert_almost_eq(amplitude_from_img_data(&img_data), 1.);
+    }
+
+    #[test]
+    fn amplitude_from_img_data_avg_point_5() {
+        let img_data = array![[0, 127], [128, 255]];
+        assert_almost_eq(amplitude_from_img_data(&img_data), 0.5);
     }
 }

@@ -1,5 +1,6 @@
 extern crate rand;
 extern crate image;
+#[macro_use(array)]
 extern crate ndarray;
 
 mod util;
