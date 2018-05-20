@@ -13,7 +13,7 @@ fn build_processed_by_receiver_map(receiver_ids: Vec<u16>) -> HashMap<u16, usize
 }
 
 #[inline]
-fn add_samples(samples_being_added_to: &mut [f32], samples_being_added: &[f32]) {
+pub fn add_samples(samples_being_added_to: &mut [f32], samples_being_added: &[f32]) {
     debug_assert!(samples_being_added.len() <= samples_being_added_to.len());
     for (i, sample) in samples_being_added.iter().enumerate() {
         samples_being_added_to[i] += sample;

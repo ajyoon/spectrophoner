@@ -72,10 +72,10 @@ impl Oscillator {
 }
 
 impl SampleGenerator for Oscillator {
-    fn get_samples(&mut self, num: u32, amplitude: f32) -> Vec<f32> {
+    fn get_samples(&mut self, num: usize, amplitude: f32) -> Vec<f32> {
         let period_at_amplitude = &self.period_cache.iter().map(|s| (*s * amplitude)).collect();
-        let samples = arrays::roll_vec(&period_at_amplitude, self.phase, num as usize);
-        self.phase = (&self.phase + num as usize) % &self.period_cache.len();
+        let samples = arrays::roll_vec(&period_at_amplitude, self.phase, num);
+        self.phase = (&self.phase + num) % &self.period_cache.len();
         samples
     }
 }
