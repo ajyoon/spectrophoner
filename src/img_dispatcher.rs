@@ -5,7 +5,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use image;
 use image::imageops::colorops;
-use image::{GenericImage, ImageBuffer, RgbImage, Rgb};
+use image::{GenericImage, ImageBuffer, RgbImage, Rgb, SubImage};
 use ndarray::prelude::*;
 
 /// Type alias for image channel identifiers
@@ -18,6 +18,7 @@ pub type ImgLayerId = u16;
 pub type ImgPacket = HashMap<ImgLayerId, Array2<u8>>;
 
 type RgbImage24Bit = ImageBuffer<Rgb<u8>, Vec<u8>>;
+type RgbImage24BitSlice<'a> = SubImage<'a, ImageBuffer<Rgb<u8>, Vec<u8>>>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct ImgLayerMetadata {
@@ -31,7 +32,7 @@ pub struct ImgLayerMetadata {
     pub total_img_height: usize,
 }
 
-type LayerExtractorFn = fn(&RgbImage24Bit) -> Array2<u8>;
+type LayerExtractorFn = fn(&RgbImage24BitSlice) -> Array2<u8>;
 
 /// Responsible for extracting data from the primary image dispatcher input,
 /// separating into layers, and sending chunks through a channel
@@ -43,9 +44,15 @@ struct ChannelHandler {
     layers_metadata: Vec<ImgLayerMetadata>
 }
 
-// impl ChannelHandler {
-//     pub fn new()
-// }
+impl ChannelHandler {
+    fn dispatch_channel(&self, img: &RgbImage24BitSlice) {
+        let mut packet = ImgPacket::new();
+        for (layer_id, layer_extractor_fn) in &self.layer_extractors {
+            packet.insert(*layer_id, layer_extractor_fn(img));
+        }
+        self.sender.send(packet).unwrap();
+    }
+}
 
 
 /// Responsible for managing a series of channels via ChannelHandlers
@@ -54,15 +61,14 @@ struct StaticImgDispatcher {
     // sender_data: Vec<(Vec<ImgLayerMetadata>, Sender<ImgPacket>)>,
     pub channel_handlers: Vec<ChannelHandler>,
     img: RgbImage24Bit,
-    chunk_width: usize,
+    chunk_width: u32,
 }
 
 
 impl StaticImgDispatcher {
 
-    pub fn new(path: &Path, chunk_width: usize) -> StaticImgDispatcher {
-        let img = image::open(path).unwrap()
-            .to_rgb();
+    pub fn new(path: &Path, chunk_width: u32) -> StaticImgDispatcher {
+        let img = image::open(path).unwrap().to_rgb();
 
         let channel_handlers = Self::generate_channel_handlers(&img);
 
@@ -74,8 +80,8 @@ impl StaticImgDispatcher {
     }
 
     fn generate_channel_handlers(img: &RgbImage24Bit) -> Vec<ChannelHandler> {
+        // naive initial implementation using just 1 channel with just 1 layer
         let (sender, receiver) = channel::<ImgPacket>();
-        // Use 1 layer for now
         let layers_metadata = vec![ImgLayerMetadata {
             img_layer_id: 0,
             y_start: 0,
@@ -93,12 +99,33 @@ impl StaticImgDispatcher {
         }]
     }
 
-    fn dispatch_image(&self) {
+    /// Send chunks of image data through channels until the image is fully consumed.
+    pub fn begin_dispatch(&mut self) {
+        let mut current_x = 0;
+        let chunk_width = self.chunk_width;
+        let img_width = self.img.width();
+        loop {
+            if current_x + self.chunk_width >= img_width {
+                self.dispatch_slice(current_x, img_width - current_x);
+                break;
+            } else {
+                self.dispatch_slice(current_x, chunk_width);
+                current_x += chunk_width;
+            }
+        }
+    }
+
+    fn dispatch_slice(&mut self, start_x: u32, width: u32) {
+        let img_height = self.img.height();
+        let slice = self.img.sub_image(start_x, 0, width, img_height);
+        for channel_handler in &self.channel_handlers {
+            channel_handler.dispatch_channel(&slice);
+        }
     }
 }
 
 
-fn naive_layer_extractor(img: &RgbImage24Bit) -> Array2<u8> {
+fn naive_layer_extractor(img: &RgbImage24BitSlice) -> Array2<u8> {
     let grayscale = colorops::grayscale(img);
     Array::from_shape_vec(
         (img.width() as usize, img.height() as usize),
