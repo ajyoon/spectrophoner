@@ -7,7 +7,7 @@ use ndarray::prelude::*;
 use mixer;
 use sample_generator::SampleGenerator;
 use synth::Oscillator;
-use img_dispatcher::{ImgChannelId, ImgChannelMetadata, ImgPacket};
+use img_dispatcher::{ImgLayerId, ImgLayerMetadata, ImgPacket};
 
 pub struct SectionInterpreter {
     oscillator: Oscillator,
@@ -25,7 +25,7 @@ pub struct ImgInterpreter {
     img_channels_receiver: Receiver<ImgPacket>,
     samples_sender: Sender<Vec<f32>>,
     samples_per_img_chunk: usize,
-    channel_handlers: HashMap<ImgChannelId, Vec<SectionInterpreter>>,
+    channel_handlers: HashMap<ImgLayerId, Vec<SectionInterpreter>>,
 }
 
 fn amplitude_from_img_data(img_data: &Array2<u8>) -> f32 {
@@ -45,13 +45,13 @@ impl SectionInterpreter {
 
 impl ImgInterpreter {
     pub fn new(
-        img_channels_metadata: Vec<ImgChannelMetadata>,
+        img_channels_metadata: Vec<ImgLayerMetadata>,
         img_channels_receiver: Receiver<ImgPacket>,
         samples_sender: Sender<Vec<f32>>,
         samples_per_img_chunk: usize,
-        section_interpreter_generators: HashMap<ImgChannelId, SectionInterpreterGenerator>,
+        section_interpreter_generators: HashMap<ImgLayerId, SectionInterpreterGenerator>,
     ) -> ImgInterpreter {
-        let mut channel_handlers = HashMap::<ImgChannelId, Vec<SectionInterpreter>>::new();
+        let mut channel_handlers = HashMap::<ImgLayerId, Vec<SectionInterpreter>>::new();
 
         for metadata in img_channels_metadata {
             let y_pos_ratio = metadata.y_start as f32 / metadata.total_img_height as f32;
@@ -59,9 +59,9 @@ impl ImgInterpreter {
                 (metadata.y_end - metadata.y_start) as f32 / metadata.total_img_height as f32;
             let section_interpreters =
                 section_interpreter_generators
-                    .get(&metadata.img_channel_id)
+                    .get(&metadata.img_layer_id)
                     .unwrap()(y_pos_ratio, height_ratio, metadata.total_img_height);
-            channel_handlers.insert(metadata.img_channel_id, section_interpreters);
+            channel_handlers.insert(metadata.img_layer_id, section_interpreters);
         }
 
         ImgInterpreter {

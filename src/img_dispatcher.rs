@@ -4,21 +4,24 @@ use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use image;
+use image::imageops::colorops;
 use image::{GenericImage, ImageBuffer, RgbImage, Rgb};
 use ndarray::prelude::*;
 
 /// Type alias for image channel identifiers
-pub type ImgChannelId = u16;
+pub type ImgLayerId = u16;
 
 /// A multiplexed image data packet containing multiple 8-bit image channels
 ///
 /// This is a type-alias for a hashmap from channel ids to image data
 /// represented as a 2D array of u8's.
-pub type ImgPacket = HashMap<ImgChannelId, Array2<u8>>;
+pub type ImgPacket = HashMap<ImgLayerId, Array2<u8>>;
+
+type RgbImage24Bit = ImageBuffer<Rgb<u8>, Vec<u8>>;
 
 #[derive(Debug, Copy, Clone)]
-pub struct ImgChannelMetadata {
-    pub img_channel_id: ImgChannelId,
+pub struct ImgLayerMetadata {
+    pub img_layer_id: ImgLayerId,
     // Coordinates are relative to the complete image's space,
     // meaning care must be taken to ensure these values are
     // within the bounds of the image section.
@@ -28,10 +31,29 @@ pub struct ImgChannelMetadata {
     pub total_img_height: usize,
 }
 
+type LayerExtractorFn = fn(&RgbImage24Bit) -> Array2<u8>;
+
+/// Responsible for extracting data from the primary image dispatcher input,
+/// separating into layers, and sending chunks through a channel
+/// where it may be picked up by image interpreters
+struct ChannelHandler {
+    receiver: Receiver<ImgPacket>,
+    sender: Sender<ImgPacket>,
+    layer_extractors: HashMap<ImgLayerId, LayerExtractorFn>,
+    layers_metadata: Vec<ImgLayerMetadata>
+}
+
+// impl ChannelHandler {
+//     pub fn new()
+// }
+
+
+/// Responsible for managing a series of channels via ChannelHandlers
 struct StaticImgDispatcher {
-    pub interpreter_data: Vec<(Vec<ImgChannelMetadata>, Receiver<ImgPacket>)>,
-    sender_data: Vec<(Vec<ImgChannelMetadata>, Sender<ImgPacket>)>,
-    img: ImageBuffer<Rgb<u8>, Vec<u8>>,
+    // pub interpreter_data: Vec<(Vec<ImgLayerMetadata>, Receiver<ImgPacket>)>,
+    // sender_data: Vec<(Vec<ImgLayerMetadata>, Sender<ImgPacket>)>,
+    pub channel_handlers: Vec<ChannelHandler>,
+    img: RgbImage24Bit,
     chunk_width: usize,
 }
 
@@ -42,30 +64,44 @@ impl StaticImgDispatcher {
         let img = image::open(path).unwrap()
             .to_rgb();
 
-        // begin wip hack...
-        // for now just hard-code a single channel - later this will be
-        // extracted into a private method which does the cool stuff
-        let (packet_sender, packet_receiver) = channel::<ImgPacket>();
+        let channel_handlers = Self::generate_channel_handlers(&img);
 
-        let metadata = vec![ImgChannelMetadata {
-            img_channel_id: 0,
+        StaticImgDispatcher {
+            img,
+            chunk_width,
+            channel_handlers
+        }
+    }
+
+    fn generate_channel_handlers(img: &RgbImage24Bit) -> Vec<ChannelHandler> {
+        let (sender, receiver) = channel::<ImgPacket>();
+        // Use 1 layer for now
+        let layers_metadata = vec![ImgLayerMetadata {
+            img_layer_id: 0,
             y_start: 0,
             y_end: img.height() as usize,
             total_img_height: img.height() as usize,
         }];
+        let mut layer_extractors = HashMap::<ImgLayerId, LayerExtractorFn>::new();
+        layer_extractors.insert(0, naive_layer_extractor);
 
-        let interpreter_data = vec![(metadata.clone(), packet_receiver)];
-        let sender_data = vec![(metadata, packet_sender)];
-        // ...end wip hack
-
-        StaticImgDispatcher {
-            interpreter_data,
-            sender_data,
-            img,
-            chunk_width,
-        }
+        vec![ChannelHandler {
+            receiver,
+            sender,
+            layer_extractors,
+            layers_metadata
+        }]
     }
 
     fn dispatch_image(&self) {
     }
+}
+
+
+fn naive_layer_extractor(img: &RgbImage24Bit) -> Array2<u8> {
+    let grayscale = colorops::grayscale(img);
+    Array::from_shape_vec(
+        (img.width() as usize, img.height() as usize),
+        grayscale.into_raw()
+    ).unwrap()
 }
