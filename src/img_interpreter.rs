@@ -7,15 +7,7 @@ use ndarray::prelude::*;
 use mixer;
 use sample_generator::SampleGenerator;
 use synth::Oscillator;
-
-/// Type alias for image channel identifiers
-type ImgChannelId = u16;
-
-/// A multiplexed image data packet containing multiple 8-bit image channels
-///
-/// This is a type-alias for a hashmap from channel ids to image data
-/// represented as a 2D array of u8's.
-type ImagePacket = HashMap<ImgChannelId, Array2<u8>>;
+use img_dispatcher::{ImgChannelId, ImgChannelMetadata, ImgPacket};
 
 pub struct SectionInterpreter {
     oscillator: Oscillator,
@@ -30,21 +22,10 @@ type SectionInterpreterGenerator =
     fn(y_pos_ratio: f32, height_ratio: f32, total_img_height: usize) -> Vec<SectionInterpreter>;
 
 pub struct ImgInterpreter {
-    img_channels_receiver: Receiver<ImagePacket>,
+    img_channels_receiver: Receiver<ImgPacket>,
     samples_sender: Sender<Vec<f32>>,
     samples_per_img_chunk: usize,
     channel_handlers: HashMap<ImgChannelId, Vec<SectionInterpreter>>,
-}
-
-pub struct ImgChannelMetadata {
-    img_channel_id: ImgChannelId,
-    // Coordinates are relative to the complete image's space,
-    // meaning care must be taken to ensure these values are
-    // within the bounds of the image section.
-    y_start: usize,
-    y_end: usize,
-    // Size of the overall image
-    total_img_height: usize,
 }
 
 fn amplitude_from_img_data(img_data: &Array2<u8>) -> f32 {
@@ -65,7 +46,7 @@ impl SectionInterpreter {
 impl ImgInterpreter {
     pub fn new(
         img_channels_metadata: Vec<ImgChannelMetadata>,
-        img_channels_receiver: Receiver<ImagePacket>,
+        img_channels_receiver: Receiver<ImgPacket>,
         samples_sender: Sender<Vec<f32>>,
         samples_per_img_chunk: usize,
         section_interpreter_generators: HashMap<ImgChannelId, SectionInterpreterGenerator>,

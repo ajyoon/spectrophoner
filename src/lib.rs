@@ -8,6 +8,6 @@ mod synth;
 mod arrays;
 mod chunk;
 mod mixer;
-mod img;
+mod img_dispatcher;
 mod sample_generator;
 mod img_interpreter;
