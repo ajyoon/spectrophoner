@@ -10,3 +10,11 @@ portaudio = "0.7.0"
 libc = "0.2.39"
 rand = "0.4.2"
 ndarray = "*"
+
+[lib]
+name = "spectrophoner"
+path = "src/lib.rs"
+
+[[bin]]
+name = "spectrophoner_test"
+path = "src/bin.rs"

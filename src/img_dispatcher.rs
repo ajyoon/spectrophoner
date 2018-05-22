@@ -37,11 +37,11 @@ type LayerExtractorFn = fn(&RgbImage24BitSlice) -> Array2<u8>;
 /// Responsible for extracting data from the primary image dispatcher input,
 /// separating into layers, and sending chunks through a channel
 /// where it may be picked up by image interpreters
-struct ChannelHandler {
-    receiver: Receiver<ImgPacket>,
+pub struct ChannelHandler {
+    pub receiver: Receiver<ImgPacket>,
+    pub layers_metadata: Vec<ImgLayerMetadata>,
     sender: Sender<ImgPacket>,
     layer_extractors: HashMap<ImgLayerId, LayerExtractorFn>,
-    layers_metadata: Vec<ImgLayerMetadata>
 }
 
 impl ChannelHandler {
@@ -56,7 +56,7 @@ impl ChannelHandler {
 
 
 /// Responsible for managing a series of channels via ChannelHandlers
-struct StaticImgDispatcher {
+pub struct StaticImgDispatcher {
     // pub interpreter_data: Vec<(Vec<ImgLayerMetadata>, Receiver<ImgPacket>)>,
     // sender_data: Vec<(Vec<ImgLayerMetadata>, Sender<ImgPacket>)>,
     pub channel_handlers: Vec<ChannelHandler>,
