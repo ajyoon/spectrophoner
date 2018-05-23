@@ -18,7 +18,7 @@ trait PeriodGenerator {
     fn generate_period(&self, frequency: PosF32, sample_rate: u32) -> Vec<f32>;
 }
 
-enum Waveform {
+pub enum Waveform {
     Sine,
     Square,
 }
@@ -63,7 +63,7 @@ pub struct Oscillator {
 }
 
 impl Oscillator {
-    fn new(waveform: Waveform, frequency: PosF32, sample_rate: u32) -> Oscillator {
+    pub fn new(waveform: Waveform, frequency: PosF32, sample_rate: u32) -> Oscillator {
         Oscillator {
             period_cache: waveform.generate_period(frequency, sample_rate),
             phase: 0,

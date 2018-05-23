@@ -34,12 +34,15 @@ pub struct ImgLayerMetadata {
 
 type LayerExtractorFn = fn(&RgbImage24BitSlice) -> Array2<u8>;
 
+pub struct ChannelExporter {
+    pub receiver: Receiver<ImgPacket>,
+    pub layers_metadata: Vec<ImgLayerMetadata>,
+}
+
 /// Responsible for extracting data from the primary image dispatcher input,
 /// separating into layers, and sending chunks through a channel
 /// where it may be picked up by image interpreters
-pub struct ChannelHandler {
-    pub receiver: Receiver<ImgPacket>,
-    pub layers_metadata: Vec<ImgLayerMetadata>,
+struct ChannelHandler {
     sender: Sender<ImgPacket>,
     layer_extractors: HashMap<ImgLayerId, LayerExtractorFn>,
 }
@@ -57,9 +60,7 @@ impl ChannelHandler {
 
 /// Responsible for managing a series of channels via ChannelHandlers
 pub struct StaticImgDispatcher {
-    // pub interpreter_data: Vec<(Vec<ImgLayerMetadata>, Receiver<ImgPacket>)>,
-    // sender_data: Vec<(Vec<ImgLayerMetadata>, Sender<ImgPacket>)>,
-    pub channel_handlers: Vec<ChannelHandler>,
+    channel_handlers: Vec<ChannelHandler>,
     img: RgbImage24Bit,
     chunk_width: u32,
 }
@@ -67,19 +68,26 @@ pub struct StaticImgDispatcher {
 
 impl StaticImgDispatcher {
 
-    pub fn new(path: &Path, chunk_width: u32) -> StaticImgDispatcher {
+    pub fn new(path: &Path, chunk_width: u32) -> (StaticImgDispatcher, Vec<ChannelExporter>) {
         let img = image::open(path).unwrap().to_rgb();
 
-        let channel_handlers = Self::generate_channel_handlers(&img);
+        let mut channel_handlers = Vec::<ChannelHandler>::new();
+        let mut channel_exporters = Vec::<ChannelExporter>::new();
 
-        StaticImgDispatcher {
+        for (handler, exporter) in Self::generate_channels(&img) {
+            channel_handlers.push(handler);
+            channel_exporters.push(exporter);
+        }
+
+        (StaticImgDispatcher {
+            channel_handlers,
             img,
             chunk_width,
-            channel_handlers
-        }
+        },
+        channel_exporters)
     }
 
-    fn generate_channel_handlers(img: &RgbImage24Bit) -> Vec<ChannelHandler> {
+    fn generate_channels(img: &RgbImage24Bit) -> Vec<(ChannelHandler, ChannelExporter)> {
         // naive initial implementation using just 1 channel with just 1 layer
         let (sender, receiver) = channel::<ImgPacket>();
         let layers_metadata = vec![ImgLayerMetadata {
@@ -91,12 +99,10 @@ impl StaticImgDispatcher {
         let mut layer_extractors = HashMap::<ImgLayerId, LayerExtractorFn>::new();
         layer_extractors.insert(0, naive_layer_extractor);
 
-        vec![ChannelHandler {
-            receiver,
-            sender,
-            layer_extractors,
-            layers_metadata
-        }]
+        vec![(
+            ChannelHandler {sender, layer_extractors},
+            ChannelExporter {receiver, layers_metadata},
+        )]
     }
 
     /// Send chunks of image data through channels until the image is fully consumed.

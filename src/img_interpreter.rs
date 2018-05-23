@@ -4,21 +4,21 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use ndarray::prelude::*;
 
+use img_dispatcher::{ImgLayerId, ImgLayerMetadata, ImgPacket};
 use mixer;
 use sample_generator::SampleGenerator;
 use synth::Oscillator;
-use img_dispatcher::{ImgLayerId, ImgLayerMetadata, ImgPacket};
 
 pub struct SectionInterpreter {
-    oscillator: Oscillator,
+    pub oscillator: Oscillator,
     // Coordinates are relative to the complete image's space,
     // meaning care must be taken to ensure these values are
     // within the bounds of the image section.
-    y_start: usize,
-    y_end: usize,
+    pub y_start: usize,
+    pub y_end: usize,
 }
 
-type SectionInterpreterGenerator =
+pub type SectionInterpreterGenerator =
     fn(y_pos_ratio: f32, height_ratio: f32, total_img_height: usize) -> Vec<SectionInterpreter>;
 
 pub struct ImgInterpreter {
