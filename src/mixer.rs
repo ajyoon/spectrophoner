@@ -3,7 +3,7 @@ use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 use std::time::Duration;
 
-use chunk::Chunk;
+pub type Chunk = Vec<f32>;
 
 const MIX_CHUNK_LEN: usize = 1024;
 const THREAD_SLEEP_DUR: Duration = Duration::from_millis(10);
@@ -36,8 +36,8 @@ pub fn mix(receivers: Vec<Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<V
             let mut combined_samples: Vec<f32> = vec![0f32; MIX_CHUNK_LEN];
             for receiver in &receivers {
                 let chunk = receiver.recv().unwrap();
-                debug_assert_eq!(chunk.samples.len(), MIX_CHUNK_LEN);
-                add_samples(combined_samples.as_mut_slice(), chunk.samples.as_slice());
+                debug_assert_eq!(chunk.len(), MIX_CHUNK_LEN);
+                add_samples(combined_samples.as_mut_slice(), chunk.as_slice());
                 mixed_chunk_sender.send(
                     compress(combined_samples.as_slice(), expected_max_amp)
                 ).unwrap();
