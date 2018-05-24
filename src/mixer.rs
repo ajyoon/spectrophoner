@@ -21,15 +21,15 @@ pub fn add_samples(samples_being_added_to: &mut [f32], samples_being_added: &[f3
 }
 
 #[inline]
-fn compress(uncompressed_samples: &[f32], expected_max_amp: f32,) -> Vec<i16> {
+fn compress(uncompressed_samples: &[f32], expected_max_amp: f32) -> Vec<f32> {
     uncompressed_samples
         .iter()
-        .map(|sample| ((sample / expected_max_amp) * 32767.) as i16)
-        .collect::<Vec<i16>>()
+        .map(|sample| sample / expected_max_amp)
+        .collect::<Vec<f32>>()
 }
 
-pub fn mix(receivers: HashMap<u16, Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<Vec<i16>> {
-    let (mixed_chunk_sender, mixed_chunk_receiver) = channel::<Vec<i16>>();
+pub fn mix(receivers: HashMap<u16, Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<Vec<f32>> {
+    let (mixed_chunk_sender, mixed_chunk_receiver) = channel::<Vec<f32>>();
 
     thread::spawn(move || {
         loop {
@@ -51,6 +51,7 @@ pub fn mix(receivers: HashMap<u16, Receiver<Chunk>>, expected_max_amp: f32) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_utils::*;
 
     #[test]
     fn test_add_samples() {
@@ -67,6 +68,6 @@ mod tests {
             100.
         );
 
-        assert_eq!(compressed_samples, vec![-32767, 0, 32767]);
+        assert_array_almost_eq_by_element(compressed_samples, vec![-1., 0., 1.,]);
     }
 }

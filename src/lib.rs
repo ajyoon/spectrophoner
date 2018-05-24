@@ -14,3 +14,4 @@ mod sample_generator;
 mod img_interpreter;
 mod audio;
 mod conductor;
+mod test_utils;

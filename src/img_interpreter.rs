@@ -94,16 +94,7 @@ impl ImgInterpreter {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn assert_almost_eq(left: f32, right: f32) {
-        const F32_EPSILON: f32 = 1.0e-6;
-        assert!(
-            (left - right).abs() < F32_EPSILON,
-            "{} is not approximately equal to {}.",
-            left,
-            right,
-        );
-    }
+    use test_utils::*;
 
     #[test]
     fn amplitude_from_img_data_all_zeros() {
