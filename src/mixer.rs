@@ -28,13 +28,13 @@ fn compress(uncompressed_samples: &[f32], expected_max_amp: f32) -> Vec<f32> {
         .collect::<Vec<f32>>()
 }
 
-pub fn mix(receivers: HashMap<u16, Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<Vec<f32>> {
+pub fn mix(receivers: Vec<Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<Vec<f32>> {
     let (mixed_chunk_sender, mixed_chunk_receiver) = channel::<Vec<f32>>();
 
     thread::spawn(move || {
         loop {
             let mut combined_samples: Vec<f32> = vec![0f32; MIX_CHUNK_LEN];
-            for receiver in receivers.values() {
+            for receiver in &receivers {
                 let chunk = receiver.recv().unwrap();
                 debug_assert_eq!(chunk.samples.len(), MIX_CHUNK_LEN);
                 add_samples(combined_samples.as_mut_slice(), chunk.samples.as_slice());
