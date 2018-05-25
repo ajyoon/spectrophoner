@@ -122,6 +122,7 @@ impl StaticImgDispatcher {
     }
 
     fn dispatch_slice(&mut self, start_x: u32, width: u32) {
+        println!("dispatching image from x: {:?} with width: {:?}", start_x, width);
         let img_height = self.img.height();
         let slice = self.img.sub_image(start_x, 0, width, img_height);
         for channel_handler in &self.channel_handlers {

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 pub type Chunk = Vec<f32>;
 
-const MIX_CHUNK_LEN: usize = 1024;
+const MIX_CHUNK_LEN: usize = 44100;
 const THREAD_SLEEP_DUR: Duration = Duration::from_millis(10);
 
 fn build_processed_by_receiver_map(receiver_ids: Vec<u16>) -> HashMap<u16, usize> {
@@ -14,7 +14,7 @@ fn build_processed_by_receiver_map(receiver_ids: Vec<u16>) -> HashMap<u16, usize
 
 #[inline]
 pub fn add_samples(samples_being_added_to: &mut [f32], samples_being_added: &[f32]) {
-    debug_assert!(samples_being_added.len() <= samples_being_added_to.len());
+    debug_assert!(samples_being_added_to.len() >= samples_being_added.len());
     for (i, sample) in samples_being_added.iter().enumerate() {
         samples_being_added_to[i] += sample;
     }

@@ -39,7 +39,7 @@ pub fn stream_to_device(chunk_receiver: Receiver<Vec<f32>>) {
             } else {
                 // Consume as many remaining queued samples as possible,
                 // filling the buffer and returning early
-                for sample in (*queued_samples).drain(args.buffer.len()..) {
+                for sample in (*queued_samples).drain(..args.buffer.len()) {
                     args.buffer[buffer_index] = sample;
                     buffer_index += 1;
                 }
@@ -48,7 +48,7 @@ pub fn stream_to_device(chunk_receiver: Receiver<Vec<f32>>) {
         }
 
         loop {
-            let mut received_samples = chunk_receiver.try_recv().unwrap();
+            let mut received_samples = chunk_receiver.recv().unwrap();
             if received_samples.len() < args.buffer.len() - buffer_index {
                 // Not enough received samples to fill buffer - consume all and repeat
                 for sample in received_samples {
@@ -58,7 +58,7 @@ pub fn stream_to_device(chunk_receiver: Receiver<Vec<f32>>) {
             } else {
                 // Exactly enough or too many received samples for buffer,
                 // consume everything we can and queue any left-overs
-                for sample in received_samples.drain((args.buffer.len() - buffer_index)..) {
+                for sample in received_samples.drain(..(args.buffer.len() - buffer_index)) {
                     args.buffer[buffer_index] = sample;
                     buffer_index += 1;
                 }
@@ -73,5 +73,10 @@ pub fn stream_to_device(chunk_receiver: Receiver<Vec<f32>>) {
 
     let mut stream = pa.open_non_blocking_stream(settings, callback).unwrap();
 
-    stream.start().unwrap()
+    stream.start().unwrap();
+
+    loop {
+        println!("[heartbeat]");
+        thread::sleep(THREAD_SLEEP_DUR);
+    }
 }

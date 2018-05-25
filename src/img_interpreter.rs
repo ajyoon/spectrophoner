@@ -76,7 +76,7 @@ impl ImgInterpreter {
     /// This loops forever until the img_channels_receiver is closed.
     pub fn interpret(&mut self) {
         for channels in &self.img_channels_receiver {
-            let mut mixed_samples = Vec::new();
+            let mut mixed_samples = vec![0.; self.samples_per_img_chunk];
             for (channel_id, img_data) in channels {
                 let mut interpreters_for_channel =
                     self.channel_handlers.get_mut(&channel_id).unwrap();
