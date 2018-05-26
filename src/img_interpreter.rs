@@ -24,10 +24,11 @@ pub type SectionInterpreterGenerator =
 pub struct ImgInterpreter {
     img_channels_receiver: Receiver<ImgPacket>,
     samples_sender: Sender<Vec<f32>>,
-    samples_per_img_chunk: usize,
+    samples_per_pixel: usize,
     channel_handlers: HashMap<ImgLayerId, Vec<SectionInterpreter>>,
 }
 
+#[inline]
 fn amplitude_from_img_data(img_data: &Array2<u8>) -> f32 {
     let mut sum = 0.0;
     for val in img_data {
@@ -37,6 +38,7 @@ fn amplitude_from_img_data(img_data: &Array2<u8>) -> f32 {
 }
 
 impl SectionInterpreter {
+    #[inline]
     fn interpret(&mut self, num_samples: usize, img_data: &Array2<u8>) -> Vec<f32> {
         let amplitude = amplitude_from_img_data(img_data);
         self.oscillator.get_samples(num_samples, amplitude)
@@ -48,7 +50,7 @@ impl ImgInterpreter {
         img_channels_metadata: Vec<ImgLayerMetadata>,
         img_channels_receiver: Receiver<ImgPacket>,
         samples_sender: Sender<Vec<f32>>,
-        samples_per_img_chunk: usize,
+        samples_per_pixel: usize,
         section_interpreter_generators: HashMap<ImgLayerId, SectionInterpreterGenerator>,
     ) -> ImgInterpreter {
         let mut channel_handlers = HashMap::<ImgLayerId, Vec<SectionInterpreter>>::new();
@@ -67,7 +69,7 @@ impl ImgInterpreter {
         ImgInterpreter {
             img_channels_receiver,
             samples_sender,
-            samples_per_img_chunk,
+            samples_per_pixel,
             channel_handlers,
         }
     }
@@ -76,14 +78,14 @@ impl ImgInterpreter {
     /// This loops forever until the img_channels_receiver is closed.
     pub fn interpret(&mut self) {
         for channels in &self.img_channels_receiver {
-            let mut mixed_samples = vec![0.; self.samples_per_img_chunk];
+            let mut mixed_samples = Vec::new();
             for (channel_id, img_data) in channels {
+                let samples_needed = img_data.len_of(Axis(0)) * self.samples_per_pixel;
                 let mut interpreters_for_channel =
                     self.channel_handlers.get_mut(&channel_id).unwrap();
                 for section_interpreter in interpreters_for_channel.iter_mut() {
-                    let section_samples =
-                        section_interpreter.interpret(self.samples_per_img_chunk, &img_data);
-                    mixer::add_samples(mixed_samples.as_mut_slice(), section_samples.as_slice());
+                    let section_samples = section_interpreter.interpret(samples_needed, &img_data);
+                    mixer::add_chunk_to(&section_samples, &mut mixed_samples);
                 }
             }
             &self.samples_sender.send(mixed_samples);
@@ -112,5 +114,28 @@ mod tests {
     fn amplitude_from_img_data_avg_point_5() {
         let img_data = array![[0, 127], [128, 255]];
         assert_almost_eq(amplitude_from_img_data(&img_data), 0.5);
+    }
+}
+
+#[cfg(test)]
+mod benchmarks {
+    extern crate rand;
+    extern crate test;
+    use super::*;
+
+    #[bench]
+    fn bench_amplitude_from_image_data(b: &mut test::Bencher) {
+        let image_data = random_image_data(1_000, 1_000);
+        b.iter(|| {
+            amplitude_from_img_data(&image_data);
+        });
+    }
+
+    fn random_image_data(width: usize, height: usize) -> Array2<u8> {
+        let mut random_array = Array2::zeros((width, height));
+        for element in random_array.iter_mut() {
+            *element = rand::random::<u8>();
+        }
+        random_array
     }
 }

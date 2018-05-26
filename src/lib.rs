@@ -1,3 +1,6 @@
+#![feature(vec_resize_default)]
+#![feature(test)]
+
 extern crate rand;
 extern crate image;
 #[macro_use(array)]

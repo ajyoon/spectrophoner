@@ -122,7 +122,6 @@ impl StaticImgDispatcher {
     }
 
     fn dispatch_slice(&mut self, start_x: u32, width: u32) {
-        println!("dispatching image from x: {:?} with width: {:?}", start_x, width);
         let img_height = self.img.height();
         let slice = self.img.sub_image(start_x, 0, width, img_height);
         for channel_handler in &self.channel_handlers {
@@ -135,7 +134,44 @@ impl StaticImgDispatcher {
 fn naive_layer_extractor(img: &RgbImage24BitSlice) -> Array2<u8> {
     let grayscale = colorops::grayscale(img);
     Array::from_shape_vec(
-        (img.width() as usize, img.height() as usize),
+        (img.width() as usize, img.height() as usize)
+            .strides((1, img.width() as usize)),
         grayscale.into_raw()
     ).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image;
+
+    #[test]
+    fn test_naive_layer_extractor() {
+        // also test some assumptions about image -> ndarray mappings
+
+        let width = 3;
+        let height = 2;
+
+        let mut buffer = image::ImageBuffer::<Rgb<u8>, Vec<u8>>::new(width, height);
+        buffer.put_pixel(0, 0, image::Rgb([0, 0, 0]));
+        buffer.put_pixel(1, 0, image::Rgb([1, 1, 1]));
+        buffer.put_pixel(2, 0, image::Rgb([2, 2, 2]));
+        buffer.put_pixel(0, 1, image::Rgb([3, 3, 3]));
+        buffer.put_pixel(1, 1, image::Rgb([4, 4, 4]));
+        buffer.put_pixel(2, 1, image::Rgb([5, 5, 5]));
+
+        let full_size_slice = buffer.sub_image(0, 0, width, height);
+
+        let extracted_layer = naive_layer_extractor(&full_size_slice);
+
+        assert_eq!(extracted_layer.len_of(Axis(0)), width as usize);
+        assert_eq!(extracted_layer.len_of(Axis(1)), height as usize);
+
+        assert_eq!(extracted_layer.get((0, 0)).unwrap(), &0u8);
+        assert_eq!(extracted_layer.get((1, 0)).unwrap(), &1u8);
+        assert_eq!(extracted_layer.get((2, 0)).unwrap(), &2u8);
+        assert_eq!(extracted_layer.get((0, 1)).unwrap(), &3u8);
+        assert_eq!(extracted_layer.get((1, 1)).unwrap(), &4u8);
+        assert_eq!(extracted_layer.get((2, 1)).unwrap(), &5u8);
+    }
 }

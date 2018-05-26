@@ -1,47 +1,46 @@
-use std::collections::{HashMap};
 use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 use std::time::Duration;
 
 pub type Chunk = Vec<f32>;
 
-const MIX_CHUNK_LEN: usize = 44100;
-const THREAD_SLEEP_DUR: Duration = Duration::from_millis(10);
-
-fn build_processed_by_receiver_map(receiver_ids: Vec<u16>) -> HashMap<u16, usize> {
-    receiver_ids.iter().map(|id| (*id, 0)).collect()
-}
-
+/// Add a chunk to another one
+///
+/// For convenience, if `dest` is empty, it will expand to the length of `src`,
+/// filled with zeros.
 #[inline]
-pub fn add_samples(samples_being_added_to: &mut [f32], samples_being_added: &[f32]) {
-    debug_assert!(samples_being_added_to.len() >= samples_being_added.len());
-    for (i, sample) in samples_being_added.iter().enumerate() {
-        samples_being_added_to[i] += sample;
+pub fn add_chunk_to(src: &Chunk, dest: &mut Chunk) {
+    debug_assert!(dest.is_empty() || dest.len() == src.len());
+    if dest.is_empty() {
+        dest.resize_default(src.len());
+    }
+
+    for (i, sample) in src.iter().enumerate() {
+        unsafe {
+            *dest.get_unchecked_mut(i) += sample;
+        }
     }
 }
 
 #[inline]
-fn compress(uncompressed_samples: &[f32], expected_max_amp: f32) -> Vec<f32> {
-    uncompressed_samples
-        .iter()
-        .map(|sample| sample / expected_max_amp)
-        .collect::<Vec<f32>>()
+fn compress(uncompressed_samples: &mut Vec<f32>, expected_max_amp: f32) {
+    for sample in uncompressed_samples {
+        *sample = (*sample) / expected_max_amp;
+    }
 }
 
 pub fn mix(receivers: Vec<Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<Vec<f32>> {
     let (mixed_chunk_sender, mixed_chunk_receiver) = channel::<Vec<f32>>();
 
-    thread::spawn(move || {
+    thread::Builder::new().name("mixer::mix()".to_string()).spawn(move || {
         loop {
-            let mut combined_samples: Vec<f32> = vec![0f32; MIX_CHUNK_LEN];
+            let mut combined_samples: Vec<f32> = Vec::new();
             for receiver in &receivers {
                 let chunk = receiver.recv().unwrap();
-                debug_assert_eq!(chunk.len(), MIX_CHUNK_LEN);
-                add_samples(combined_samples.as_mut_slice(), chunk.as_slice());
-                mixed_chunk_sender.send(
-                    compress(combined_samples.as_slice(), expected_max_amp)
-                ).unwrap();
+                add_chunk_to(&chunk, &mut combined_samples);
             }
+            compress(&mut combined_samples, expected_max_amp);
+            mixed_chunk_sender.send(combined_samples).unwrap();
         }
     });
 
@@ -54,20 +53,69 @@ mod tests {
     use test_utils::*;
 
     #[test]
-    fn test_add_samples() {
-        let mut vec_being_added_to = vec![1.1, 2.2];
-        let vec_being_added = vec![1., 2.];
-        add_samples(vec_being_added_to.as_mut_slice(), vec_being_added.as_slice());
-        assert_eq!(vec_being_added_to, vec![2.1, 4.2]);
+    fn test_add_chunk_to_from_empty() {
+        let mut dest = vec![];
+        let src = vec![1., 2.];
+        add_chunk_to(&src, &mut dest);
+        assert_array_almost_eq_by_element(dest, vec![1., 2.]);
+    }
+
+    #[test]
+    fn test_add_chunk_to_from_same_size() {
+        let mut dest = vec![1.1, 2.2];
+        let src = vec![1., 2.];
+        add_chunk_to(&src, &mut dest);
+        assert_array_almost_eq_by_element(dest, vec![2.1, 4.2]);
     }
 
     #[test]
     fn test_compress() {
-        let compressed_samples = compress(
-            vec![-100., 0., 100.].as_slice(),
-            100.
-        );
+        let mut samples = vec![-100., 0., 100.];
+        compress(&mut samples, 100.);
 
-        assert_array_almost_eq_by_element(compressed_samples, vec![-1., 0., 1.,]);
+        assert_array_almost_eq_by_element(samples, vec![-1., 0., 1.,]);
+    }
+}
+
+#[cfg(test)]
+mod benchmarks {
+    extern crate test;
+    extern crate rand;
+    use super::*;
+
+    #[bench]
+    fn add_chunk_to_empty(b: &mut test::Bencher) {
+        run_add_chunk_bench(b, random_chunk(1_000_000), vec![]);
+    }
+
+    #[bench]
+    fn add_chunk_to_filled(b: &mut test::Bencher) {
+        run_add_chunk_bench(b, random_chunk(1_000_000), random_chunk(1_000_000));
+    }
+
+    #[bench]
+    fn compress_random_data(b: &mut test::Bencher) {
+        run_compress_bench(b, &mut random_chunk(1_000_000));
+    }
+
+    fn run_add_chunk_bench(b: &mut test::Bencher, src: Vec<f32>, dest: Vec<f32>) {
+        let mut black_box_dest = test::black_box(dest);
+        b.iter(|| {
+            add_chunk_to(&src, &mut black_box_dest);
+        });
+    }
+
+    fn run_compress_bench(b: &mut test::Bencher, samples: &mut Chunk) {
+        b.iter(|| {
+            compress(samples, 100.);
+        });
+    }
+
+    fn random_chunk(len: usize) -> Vec<f32> {
+        let mut chunk = Vec::<f32>::new();
+        for _ in 0..len {
+            chunk.push(rand::random::<f32>());
+        }
+        chunk
     }
 }
