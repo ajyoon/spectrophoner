@@ -3,7 +3,6 @@ extern crate libc;
 use std::mem;
 
 
-
 #[inline]
 fn unsafe_memcpy(write_ptr: usize, src_ptr: usize, bytes: usize) {
     unsafe {

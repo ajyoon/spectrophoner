@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 
 use ndarray::prelude::*;
+use stopwatch::Stopwatch;
 
 use img_dispatcher::{ImgLayerId, ImgLayerMetadata, ImgPacket};
 use mixer;
@@ -22,10 +23,10 @@ pub type SectionInterpreterGenerator =
     fn(y_pos_ratio: f32, height_ratio: f32, total_img_height: usize) -> Vec<SectionInterpreter>;
 
 pub struct ImgInterpreter {
-    img_channels_receiver: Receiver<ImgPacket>,
+    img_packet_receiver: Receiver<ImgPacket>,
     samples_sender: Sender<Vec<f32>>,
     samples_per_pixel: usize,
-    channel_handlers: HashMap<ImgLayerId, Vec<SectionInterpreter>>,
+    layer_handlers: HashMap<ImgLayerId, Vec<SectionInterpreter>>,
 }
 
 #[inline]
@@ -47,15 +48,15 @@ impl SectionInterpreter {
 
 impl ImgInterpreter {
     pub fn new(
-        img_channels_metadata: Vec<ImgLayerMetadata>,
-        img_channels_receiver: Receiver<ImgPacket>,
+        layers_metadata: Vec<ImgLayerMetadata>,
+        img_packet_receiver: Receiver<ImgPacket>,
         samples_sender: Sender<Vec<f32>>,
         samples_per_pixel: usize,
         section_interpreter_generators: HashMap<ImgLayerId, SectionInterpreterGenerator>,
     ) -> ImgInterpreter {
-        let mut channel_handlers = HashMap::<ImgLayerId, Vec<SectionInterpreter>>::new();
+        let mut layer_handlers = HashMap::<ImgLayerId, Vec<SectionInterpreter>>::new();
 
-        for metadata in img_channels_metadata {
+        for metadata in layers_metadata {
             let y_pos_ratio = metadata.y_start as f32 / metadata.total_img_height as f32;
             let height_ratio =
                 (metadata.y_end - metadata.y_start) as f32 / metadata.total_img_height as f32;
@@ -63,27 +64,27 @@ impl ImgInterpreter {
                 section_interpreter_generators
                     .get(&metadata.img_layer_id)
                     .unwrap()(y_pos_ratio, height_ratio, metadata.total_img_height);
-            channel_handlers.insert(metadata.img_layer_id, section_interpreters);
+            layer_handlers.insert(metadata.img_layer_id, section_interpreters);
         }
 
         ImgInterpreter {
-            img_channels_receiver,
+            img_packet_receiver,
             samples_sender,
             samples_per_pixel,
-            channel_handlers,
+            layer_handlers,
         }
     }
 
-    /// Start interpreting image data from img_channels_receiver into samples
-    /// This loops forever until the img_channels_receiver is closed.
+    /// Start interpreting image data from img_packet_receiver into samples
+    /// This loops forever until the img_packet_receiver is closed.
     pub fn interpret(&mut self) {
-        for channels in &self.img_channels_receiver {
+        for img_packet in &self.img_packet_receiver {
             let mut mixed_samples = Vec::new();
-            for (channel_id, img_data) in channels {
+            for (layer_id, img_data) in img_packet {
                 let samples_needed = img_data.len_of(Axis(0)) * self.samples_per_pixel;
-                let mut interpreters_for_channel =
-                    self.channel_handlers.get_mut(&channel_id).unwrap();
-                for section_interpreter in interpreters_for_channel.iter_mut() {
+                let mut interpreters_for_layer =
+                    self.layer_handlers.get_mut(&layer_id).unwrap();
+                for section_interpreter in interpreters_for_layer.iter_mut() {
                     let section_samples = section_interpreter.interpret(samples_needed, &img_data);
                     mixer::add_chunk_to(&section_samples, &mut mixed_samples);
                 }

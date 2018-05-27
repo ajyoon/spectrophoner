@@ -32,16 +32,22 @@ pub fn conduct() {
         let mut interpreter =
             derive_img_interpreter(layers_metadata, img_layers_receiver, samples_sender);
 
-        thread::Builder::new().name("ImgInterpreter".to_string()).spawn(move || {
-            interpreter.interpret();
-        }).unwrap();
+        thread::Builder::new()
+            .name("ImgInterpreter".to_string())
+            .spawn(move || {
+                interpreter.interpret();
+            })
+            .unwrap();
     }
 
-    thread::Builder::new().name("StaticImgDispatcher".to_string()).spawn(move || {
-        img_dispatcher.begin_dispatch();
-    }).unwrap();
+    thread::Builder::new()
+        .name("StaticImgDispatcher".to_string())
+        .spawn(move || {
+            img_dispatcher.begin_dispatch();
+        })
+        .unwrap();
 
-    let mixed_samples_receiver = mixer::mix(interpreter_sample_receivers, 1000.);
+    let mixed_samples_receiver = mixer::mix(interpreter_sample_receivers, 3.);
 
     audio::stream_to_device(mixed_samples_receiver);
 }
@@ -72,7 +78,7 @@ fn naive_section_interpreter_generator(
 ) -> Vec<SectionInterpreter> {
     let mut section_interpreters = Vec::<SectionInterpreter>::new();
 
-    let sections = 1000;
+    let sections = 1;
 
     for i in 0..sections {
         let offset = (i as f32) / (sections as f32);

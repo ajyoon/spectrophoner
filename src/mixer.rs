@@ -2,6 +2,8 @@ use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 use std::time::Duration;
 
+use stopwatch::Stopwatch;
+
 pub type Chunk = Vec<f32>;
 
 /// Add a chunk to another one
@@ -85,17 +87,17 @@ mod benchmarks {
 
     #[bench]
     fn add_chunk_to_empty(b: &mut test::Bencher) {
-        run_add_chunk_bench(b, random_chunk(1_000_000), vec![]);
+        run_add_chunk_bench(b, random_chunk(44100), vec![]);
     }
 
     #[bench]
     fn add_chunk_to_filled(b: &mut test::Bencher) {
-        run_add_chunk_bench(b, random_chunk(1_000_000), random_chunk(1_000_000));
+        run_add_chunk_bench(b, random_chunk(44100), random_chunk(44100));
     }
 
     #[bench]
     fn compress_random_data(b: &mut test::Bencher) {
-        run_compress_bench(b, &mut random_chunk(1_000_000));
+        run_compress_bench(b, &mut random_chunk(44100));
     }
 
     fn run_add_chunk_bench(b: &mut test::Bencher, src: Vec<f32>, dest: Vec<f32>) {

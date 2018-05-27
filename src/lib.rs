@@ -6,15 +6,18 @@ extern crate image;
 #[macro_use(array)]
 extern crate ndarray;
 extern crate portaudio;
+extern crate stopwatch;
 
-mod util;
-mod synth;
 mod arrays;
-mod mixer;
-mod img_dispatcher;
-mod sample_generator;
-mod img_interpreter;
 mod audio;
+mod img_dispatcher;
+mod img_interpreter;
+mod mixer;
+mod sample_buffer;
+mod sample_generator;
+mod synth;
+mod util;
+
 pub mod conductor;
 
 #[cfg(test)]
