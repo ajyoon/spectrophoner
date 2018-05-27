@@ -1,7 +1,7 @@
 [package]
 name = "spectrophone"
 version = "0.1.0"
-authors = ["Andrew Yoon <ayoon@toasttab.com>"]
+authors = ["Andrew Yoon <andrewyoon2@gmail.com>"]
 
 [dependencies]
 time = "*"
@@ -17,7 +17,7 @@ name = "spectrophoner"
 path = "src/lib.rs"
 
 [[bin]]
-name = "spectrophoner_test"
+name = "spectrophoner_bin"
 path = "src/bin.rs"
 
 [profile.release]

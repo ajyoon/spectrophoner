@@ -2,9 +2,9 @@ extern crate libc;
 
 use std::f32::consts;
 
-use ::util::PosF32;
-use ::arrays;
-use ::sample_generator::SampleGenerator;
+use arrays;
+use sample_generator::SampleGenerator;
+use util::PosF32;
 
 const TWO_PI: f32 = consts::PI * 2.;
 const SINGLE_SIGNAL_MIN: f32 = -1.;
@@ -97,9 +97,10 @@ mod tests {
                 let actual = Waveform::Sine.generate_period(PosF32::new(2250.), 44100);
                 let expected = vec![
                     // these values verified as sane by plotting and doing an eyeball check
-                    0.0, 0.32469946, 0.6142127, 0.8371665, 0.9694003, 0.9965845, 0.91577333,
-                    0.7357239, 0.4759474, 0.16459462, -0.16459456, -0.47594735, -0.7357239,
-                    -0.9157734, -0.9965845, -0.96940035, -0.8371665, -0.6142126, -0.32469952
+                    0.0, 0.32469946, 0.6142127, 0.8371665, 0.9694003, 0.9965845,
+                    0.91577333, 0.7357239, 0.4759474, 0.16459462, -0.16459456,
+                    -0.47594735, -0.7357239, -0.9157734, -0.9965845, -0.96940035,
+                    -0.8371665, -0.6142126, -0.32469952,
                 ];
                 assert_array_almost_eq_by_element(actual, expected);
             }
@@ -119,7 +120,9 @@ mod tests {
                 let actual = Waveform::Square.generate_period(PosF32::new(4410.), 44100);
                 let expected = vec![
                     // these values verified as sane by plotting and doing an eyeball check
-                    1.0, 1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0, -1.0];
+                    1.0, 1.0, 1.0, 1.0, 1.0,
+                    -1.0, -1.0, -1.0, -1.0, -1.0,
+                ];
                 assert_array_almost_eq_by_element(actual, expected);
             }
 
@@ -133,6 +136,21 @@ mod tests {
 
     mod oscillator {
         use super::*;
+
+        #[test]
+        fn get_samples_preserves_phase() {
+            let mut osc = Oscillator::new(Waveform::Sine, PosF32::new(4410.), 44100);
+            let mut samples = osc.get_samples(10, 1.);
+            samples.append(&mut osc.get_samples(10, 1.));
+            let expected: Vec<f32> = vec![
+                0.0, 0.58778524, 0.95105654, 0.9510565, 0.5877852,
+                -0.00000008742278, -0.58778536, -0.9510565, -0.9510565,
+                -0.58778495, 0.0, 0.58778524, 0.95105654, 0.9510565, 0.5877852,
+                -0.00000008742278, -0.58778536, -0.9510565, -0.9510565,
+                -0.58778495
+            ];
+            assert_array_almost_eq_by_element(samples, expected);
+        }
 
         #[test]
         #[ignore]

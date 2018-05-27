@@ -6,17 +6,25 @@ use stopwatch::Stopwatch;
 
 pub type Chunk = Vec<f32>;
 
-/// Add a chunk to another one
-///
-/// For convenience, if `dest` is empty, it will expand to the length of `src`,
-/// filled with zeros.
 #[inline]
-pub fn add_chunk_to(src: &Chunk, dest: &mut Chunk) {
+fn add_chunk_to_maybe_empty(src: &Chunk, dest: &mut Chunk) {
     debug_assert!(dest.is_empty() || dest.len() == src.len());
     if dest.is_empty() {
-        dest.resize_default(src.len());
+        dest.reserve_exact(src.len());
+        for i in 0..src.len() {
+            dest.push(0.);
+        }
     }
+    for (i, sample) in src.iter().enumerate() {
+        unsafe {
+            *dest.get_unchecked_mut(i) += sample;
+        }
+    }
+}
 
+#[inline]
+pub fn add_chunk_to(src: &Chunk, dest: &mut Chunk) {
+    debug_assert!(dest.len() == src.len());
     for (i, sample) in src.iter().enumerate() {
         unsafe {
             *dest.get_unchecked_mut(i) += sample;
@@ -39,7 +47,7 @@ pub fn mix(receivers: Vec<Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<V
             let mut combined_samples: Vec<f32> = Vec::new();
             for receiver in &receivers {
                 let chunk = receiver.recv().unwrap();
-                add_chunk_to(&chunk, &mut combined_samples);
+                add_chunk_to_maybe_empty(&chunk, &mut combined_samples);
             }
             compress(&mut combined_samples, expected_max_amp);
             mixed_chunk_sender.send(combined_samples).unwrap();
@@ -55,10 +63,10 @@ mod tests {
     use test_utils::*;
 
     #[test]
-    fn test_add_chunk_to_from_empty() {
+    fn test_add_chunk_to_maybe_empty_from_empty() {
         let mut dest = vec![];
         let src = vec![1., 2.];
-        add_chunk_to(&src, &mut dest);
+        add_chunk_to_maybe_empty(&src, &mut dest);
         assert_array_almost_eq_by_element(dest, vec![1., 2.]);
     }
 
@@ -86,8 +94,13 @@ mod benchmarks {
     use super::*;
 
     #[bench]
-    fn add_chunk_to_empty(b: &mut test::Bencher) {
-        run_add_chunk_bench(b, random_chunk(44100), vec![]);
+    fn add_chunk_to_maybe_empty_with_empty(b: &mut test::Bencher) {
+        run_add_chunk_maybe_empty_bench(b, random_chunk(44100), vec![]);
+    }
+
+    #[bench]
+    fn add_chunk_to_maybe_empty_with_nonempty(b: &mut test::Bencher) {
+        run_add_chunk_maybe_empty_bench(b, random_chunk(44100), random_chunk(44100));
     }
 
     #[bench]
@@ -104,6 +117,13 @@ mod benchmarks {
         let mut black_box_dest = test::black_box(dest);
         b.iter(|| {
             add_chunk_to(&src, &mut black_box_dest);
+        });
+    }
+
+    fn run_add_chunk_maybe_empty_bench(b: &mut test::Bencher, src: Vec<f32>, dest: Vec<f32>) {
+        let mut black_box_dest = test::black_box(dest);
+        b.iter(|| {
+            add_chunk_to_maybe_empty(&src, &mut black_box_dest);
         });
     }
 

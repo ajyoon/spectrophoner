@@ -79,11 +79,11 @@ impl ImgInterpreter {
     /// This loops forever until the img_packet_receiver is closed.
     pub fn interpret(&mut self) {
         for img_packet in &self.img_packet_receiver {
-            let mut mixed_samples = Vec::new();
+            let samples_needed =
+                img_packet.values().nth(0).unwrap().len_of(Axis(0)) * self.samples_per_pixel;
+            let mut mixed_samples = vec![0.; samples_needed];
             for (layer_id, img_data) in img_packet {
-                let samples_needed = img_data.len_of(Axis(0)) * self.samples_per_pixel;
-                let mut interpreters_for_layer =
-                    self.layer_handlers.get_mut(&layer_id).unwrap();
+                let mut interpreters_for_layer = self.layer_handlers.get_mut(&layer_id).unwrap();
                 for section_interpreter in interpreters_for_layer.iter_mut() {
                     let section_samples = section_interpreter.interpret(samples_needed, &img_data);
                     mixer::add_chunk_to(&section_samples, &mut mixed_samples);

@@ -47,7 +47,7 @@ pub fn conduct() {
         })
         .unwrap();
 
-    let mixed_samples_receiver = mixer::mix(interpreter_sample_receivers, 3.);
+    let mixed_samples_receiver = mixer::mix(interpreter_sample_receivers, 1000.);
 
     audio::stream_to_device(mixed_samples_receiver);
 }
@@ -78,7 +78,7 @@ fn naive_section_interpreter_generator(
 ) -> Vec<SectionInterpreter> {
     let mut section_interpreters = Vec::<SectionInterpreter>::new();
 
-    let sections = 1;
+    let sections = 1000;
 
     for i in 0..sections {
         let offset = (i as f32) / (sections as f32);
