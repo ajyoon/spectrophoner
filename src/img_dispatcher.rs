@@ -17,8 +17,8 @@ pub type ImgLayerId = u16;
 /// represented as a 2D array of u8's.
 pub type ImgPacket = HashMap<ImgLayerId, Array2<u8>>;
 
-type RgbImage24Bit = ImageBuffer<Rgb<u8>, Vec<u8>>;
-type RgbImage24BitSlice<'a> = SubImage<'a, ImageBuffer<Rgb<u8>, Vec<u8>>>;
+pub type RgbImage24Bit = ImageBuffer<Rgb<u8>, Vec<u8>>;
+pub type RgbImage24BitSlice<'a> = SubImage<'a, ImageBuffer<Rgb<u8>, Vec<u8>>>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct ImgLayerMetadata {
@@ -135,7 +135,7 @@ impl StaticImgDispatcher {
     }
 }
 
-fn naive_layer_extractor(img: &RgbImage24BitSlice) -> Array2<u8> {
+pub fn naive_layer_extractor(img: &RgbImage24BitSlice) -> Array2<u8> {
     let grayscale = colorops::grayscale(img);
     Array::from_shape_vec(
         (img.width() as usize, img.height() as usize).strides((1, img.width() as usize)),

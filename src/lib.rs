@@ -1,4 +1,3 @@
-#![feature(vec_resize_default)]
 #![feature(custom_attribute)]
 #![feature(test)]
 
@@ -10,14 +9,13 @@ extern crate ndarray;
 extern crate portaudio;
 extern crate stopwatch;
 
-mod arrays;
-mod audio;
-mod img_dispatcher;
-mod img_interpreter;
-mod mixer;
-mod sample_buffer;
-mod synth;
-
+pub mod arrays;
+pub mod audio;
+pub mod img_dispatcher;
+pub mod img_interpreter;
+pub mod mixer;
+pub mod sample_buffer;
+pub mod synth;
 pub mod conductor;
 
 #[cfg(test)]
