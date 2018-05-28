@@ -11,16 +11,20 @@ use img_interpreter::{ImgInterpreter, SectionInterpreter, SectionInterpreterGene
 use mixer;
 use mixer::Chunk;
 use synth::{Oscillator, Waveform};
-use util::PosF32;
 
 const SAMPLE_RATE: u32 = 44100;
 
+const TEMP_HARDCODED_SAMPLES_PER_PIXEL: usize = 441;
+const TEMP_HARDCODED_IMG_CHUNK_WIDTH: u32 = 100;
+const TEMP_HARDCODED_OSC_COUNT: usize = 100;
+
 /// hacky testing for now
 pub fn conduct() {
-    let chunk_width = 1;
+    // let img_path = Path::new("resources/horizontal_line.png");
     // let img_path = Path::new("resources/ascending_line.png");
     let img_path = Path::new("resources/flipped.png");
-    let (mut img_dispatcher, channel_exporters) = StaticImgDispatcher::new(img_path, chunk_width);
+    let (mut img_dispatcher, channel_exporters) = StaticImgDispatcher::new(
+        img_path, TEMP_HARDCODED_IMG_CHUNK_WIDTH);
 
     let mut interpreter_sample_receivers = Vec::<Receiver<Chunk>>::new();
 
@@ -47,7 +51,8 @@ pub fn conduct() {
         })
         .unwrap();
 
-    let mixed_samples_receiver = mixer::mix(interpreter_sample_receivers, 1000.);
+    let mixed_samples_receiver = mixer::mix(interpreter_sample_receivers,
+                                            TEMP_HARDCODED_OSC_COUNT as f32);
 
     audio::stream_to_device(mixed_samples_receiver);
 }
@@ -57,8 +62,6 @@ fn derive_img_interpreter(
     img_layers_receiver: Receiver<ImgPacket>,
     samples_sender: Sender<Vec<f32>>,
 ) -> ImgInterpreter {
-    const TEMP_HARDCODED_SAMPLES_PER_PIXEL: usize = 44100;
-
     let section_interpreter_generators =
         derive_simple_section_interpreter_generators(&layers_metadata);
 
@@ -78,14 +81,12 @@ fn naive_section_interpreter_generator(
 ) -> Vec<SectionInterpreter> {
     let mut section_interpreters = Vec::<SectionInterpreter>::new();
 
-    let sections = 1000;
-
-    for i in 0..sections {
-        let offset = (i as f32) / (sections as f32);
+    for i in 0..TEMP_HARDCODED_OSC_COUNT {
+        let offset = (i as f32) / (TEMP_HARDCODED_OSC_COUNT as f32);
         let offset_y_pos_ratio = y_pos_ratio + offset;
         let offset_height_ratio = height_ratio + offset;
         let freq = offset_height_ratio * 440.;
-        let oscillator = Oscillator::new(Waveform::Sine, PosF32::new(freq), SAMPLE_RATE);
+        let oscillator = Oscillator::new(Waveform::Sine, freq, SAMPLE_RATE);
         println!("oscillator freq: {:?}", freq);
         let y_start = clamp(
             (offset_y_pos_ratio * (total_img_height as f32)) as usize,
@@ -97,11 +98,7 @@ fn naive_section_interpreter_generator(
             0,
             total_img_height,
         );
-        section_interpreters.push(SectionInterpreter {
-            oscillator,
-            y_start,
-            y_end,
-        });
+        section_interpreters.push(SectionInterpreter::new(oscillator, y_start, y_end));
         println!(
             "start: {}, end: {}",
             section_interpreters.last().unwrap().y_start,

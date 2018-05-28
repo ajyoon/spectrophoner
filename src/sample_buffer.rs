@@ -72,7 +72,7 @@ mod tests {
         let new_data = vec![0.1, 0.2];
         buf.overwrite(new_data);
 
-        assert_array_almost_eq_by_element(buf.underlier, vec![0.1, 0.2]);
+        assert_almost_eq_by_element(buf.underlier, vec![0.1, 0.2]);
         assert_eq!(buf.index, 0);
     }
 

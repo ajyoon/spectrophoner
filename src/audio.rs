@@ -24,26 +24,8 @@ pub fn stream_to_device(chunk_receiver: Receiver<Vec<f32>>) {
     let queued_received_samples = Arc::new(RefCell::new(initial_queue_buffer));
 
     let callback = move |args: portaudio::OutputStreamCallbackArgs<f32>| {
-        let mut queued_samples = queued_received_samples.borrow_mut();
-        let mut buffer_index = 0;
-        loop {
-            let queued_elements_remaining = queued_samples.elements_remaining();
-            if queued_elements_remaining >= args.buffer.len() {
-                // Enough samples in the queue to fill the buffer completely
-                queued_samples.consume_into(&args.buffer);
-                return portaudio::Continue;
-            }
-
-            // Not enough samples in the queue to fill the buffer, but take what we can
-            queued_samples
-                .consume_into(&args.buffer[buffer_index..buffer_index + queued_elements_remaining]);
-
-            // Fill the queue with a new received chunk
-            let sw = Stopwatch::start_new();
-            let received_samples = chunk_receiver.recv().unwrap();
-            println!("received samples in {:?}", sw.elapsed());
-            queued_samples.overwrite(received_samples);
-        }
+        fill_pa_buffer(&queued_received_samples, &chunk_receiver, args.buffer);
+        portaudio::Continue
     };
 
     let mut stream = pa.open_non_blocking_stream(settings, callback).unwrap();
@@ -51,7 +33,36 @@ pub fn stream_to_device(chunk_receiver: Receiver<Vec<f32>>) {
     stream.start().unwrap();
 
     loop {
-        println!("[heartbeat]");
+        // println!("[heartbeat]");
         thread::sleep(THREAD_SLEEP_DUR);
+    }
+}
+
+fn fill_pa_buffer(
+    queued_received_samples: &Arc<RefCell<SampleBuffer<f32>>>,
+    chunk_receiver: &Receiver<Vec<f32>>,
+    out_buffer: &mut [f32],
+) {
+    let mut queued_samples = queued_received_samples.borrow_mut();
+    let mut buffer_index = 0;
+    loop {
+        let queued_elements_remaining = queued_samples.elements_remaining();
+        if queued_elements_remaining >= out_buffer.len() - buffer_index {
+            // Enough samples in the queue to fill the buffer completely
+            queued_samples.consume_into(&out_buffer[buffer_index..]);
+            return;
+        }
+
+        // Not enough samples in the queue to fill the buffer, but take what we can
+        queued_samples
+            .consume_into(&out_buffer[buffer_index..buffer_index + queued_elements_remaining]);
+
+        buffer_index += queued_elements_remaining;
+
+        // Fill the queue with a new received chunk
+        // let sw = Stopwatch::start_new();
+        let received_samples = chunk_receiver.recv().unwrap();
+        // println!("received samples in {:?}", sw.elapsed());
+        queued_samples.overwrite(received_samples);
     }
 }

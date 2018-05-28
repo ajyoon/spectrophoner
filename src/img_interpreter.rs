@@ -7,7 +7,6 @@ use stopwatch::Stopwatch;
 
 use img_dispatcher::{ImgLayerId, ImgLayerMetadata, ImgPacket};
 use mixer;
-use sample_generator::SampleGenerator;
 use synth::Oscillator;
 
 pub struct SectionInterpreter {
@@ -17,6 +16,7 @@ pub struct SectionInterpreter {
     // within the bounds of the image section.
     pub y_start: usize,
     pub y_end: usize,
+    last_amplitude: f32,
 }
 
 pub type SectionInterpreterGenerator =
@@ -30,7 +30,7 @@ pub struct ImgInterpreter {
 }
 
 #[inline]
-fn amplitude_from_img_data(img_data: &Array2<u8>) -> f32 {
+fn amplitude_from_img_data(img_data: &ArrayView2<u8>) -> f32 {
     let mut sum = 0.0;
     for val in img_data {
         sum += *val as f32;
@@ -39,10 +39,34 @@ fn amplitude_from_img_data(img_data: &Array2<u8>) -> f32 {
 }
 
 impl SectionInterpreter {
-    #[inline]
+    pub fn new(oscillator: Oscillator, y_start: usize, y_end: usize) -> SectionInterpreter {
+        SectionInterpreter {
+            oscillator,
+            y_start,
+            y_end,
+            last_amplitude: 0.,
+        }
+    }
+
+    fn horizontally_slice_img_data<'a>(
+        img_data: &'a Array2<u8>,
+        y_start: usize,
+        y_end: usize,
+    ) -> ArrayView2<u8> {
+        img_data.slice(s![.., y_start..y_end])
+    }
+
     fn interpret(&mut self, num_samples: usize, img_data: &Array2<u8>) -> Vec<f32> {
-        let amplitude = amplitude_from_img_data(img_data);
-        self.oscillator.get_samples(num_samples, amplitude)
+        let slice = Self::horizontally_slice_img_data(img_data, self.y_start, self.y_end);
+        let end_amplitude = amplitude_from_img_data(&slice);
+
+        let samples = self.oscillator.get_samples_with_interpolated_amp(
+            num_samples,
+            self.last_amplitude,
+            end_amplitude,
+        );
+        self.last_amplitude = end_amplitude;
+        samples
     }
 }
 
@@ -102,19 +126,35 @@ mod tests {
     #[test]
     fn amplitude_from_img_data_all_zeros() {
         let img_data = array![[0, 0], [0, 0]];
-        assert_almost_eq(amplitude_from_img_data(&img_data), 0.);
+        assert_almost_eq(amplitude_from_img_data(&img_data.view()), 0.);
     }
 
     #[test]
     fn amplitude_from_img_data_all_max() {
         let img_data = array![[255, 255], [255, 255]];
-        assert_almost_eq(amplitude_from_img_data(&img_data), 1.);
+        assert_almost_eq(amplitude_from_img_data(&img_data.view()), 1.);
     }
 
     #[test]
     fn amplitude_from_img_data_avg_point_5() {
         let img_data = array![[0, 127], [128, 255]];
-        assert_almost_eq(amplitude_from_img_data(&img_data), 0.5);
+        assert_almost_eq(amplitude_from_img_data(&img_data.view()), 0.5);
+    }
+
+    #[test]
+    fn test_horizontally_slice_img_data() {
+        let img_data = array![
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+        ];
+        let slice = SectionInterpreter::horizontally_slice_img_data(&img_data, 0, 2);
+        let expected = array![
+            [0, 0],
+            [1, 1],
+            [2, 2],
+        ];
+        assert_img_data_eq_by_element(slice, expected.view());
     }
 }
 
@@ -127,8 +167,9 @@ mod benchmarks {
     #[bench]
     fn bench_amplitude_from_image_data(b: &mut test::Bencher) {
         let image_data = random_image_data(1_000, 1_000);
+        let image_view = image_data.view();
         b.iter(|| {
-            amplitude_from_img_data(&image_data);
+            amplitude_from_img_data(&image_view);
         });
     }
 

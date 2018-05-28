@@ -2,6 +2,8 @@ extern crate libc;
 
 use std::mem;
 
+use ndarray::prelude::*;
+
 
 #[inline]
 fn unsafe_memcpy(write_ptr: usize, src_ptr: usize, bytes: usize) {
@@ -56,9 +58,18 @@ pub fn roll_vec<T>(src_vec: &Vec<T>, src_offset: usize, elements: usize) -> Vec<
     rolled
 }
 
+pub fn multiply_over_linspace(data: &mut[f32], start: f32, end: f32) {
+    let multipliers = Array::linspace(start, end, data.len());
+    for (i, element) in data.iter_mut().enumerate() {
+        *element *= multipliers[i];
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use test_utils::*;
 
     #[test]
     fn single_complete_copy() {
@@ -93,5 +104,19 @@ mod tests {
         let original = vec![1., 2., 3.];
         let rolled = roll_vec(&original, 1, 9);
         assert_eq!(rolled, [2., 3., 1., 2., 3., 1., 2., 3., 1.]);
+    }
+
+    #[test]
+    fn test_multiply_over_linespace_constant() {
+        let mut vec = vec![1., 2., 3.];
+        multiply_over_linspace(vec.as_mut_slice(), 1., 1.);
+        assert_almost_eq_by_element(vec, vec![1., 2., 3.]);
+    }
+
+    #[test]
+    fn test_multiply_over_linespace_slope_1() {
+        let mut vec = vec![1., 2., 3.];
+        multiply_over_linspace(vec.as_mut_slice(), 0., 1.);
+        assert_almost_eq_by_element(vec, vec![0., 1., 3.]);
     }
 }

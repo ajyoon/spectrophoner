@@ -1,11 +1,11 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use std::collections::HashMap;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 use image;
 use image::imageops::colorops;
-use image::{GenericImage, ImageBuffer, RgbImage, Rgb, SubImage};
+use image::{GenericImage, ImageBuffer, Rgb, RgbImage, SubImage};
 use ndarray::prelude::*;
 
 /// Type alias for image channel identifiers
@@ -57,7 +57,6 @@ impl ChannelHandler {
     }
 }
 
-
 /// Responsible for managing a series of channels via ChannelHandlers
 pub struct StaticImgDispatcher {
     channel_handlers: Vec<ChannelHandler>,
@@ -65,9 +64,7 @@ pub struct StaticImgDispatcher {
     chunk_width: u32,
 }
 
-
 impl StaticImgDispatcher {
-
     pub fn new(path: &Path, chunk_width: u32) -> (StaticImgDispatcher, Vec<ChannelExporter>) {
         let img = image::open(path).unwrap().to_rgb();
 
@@ -79,12 +76,14 @@ impl StaticImgDispatcher {
             channel_exporters.push(exporter);
         }
 
-        (StaticImgDispatcher {
-            channel_handlers,
-            img,
-            chunk_width,
-        },
-        channel_exporters)
+        (
+            StaticImgDispatcher {
+                channel_handlers,
+                img,
+                chunk_width,
+            },
+            channel_exporters,
+        )
     }
 
     fn generate_channels(img: &RgbImage24Bit) -> Vec<(ChannelHandler, ChannelExporter)> {
@@ -100,8 +99,14 @@ impl StaticImgDispatcher {
         layer_extractors.insert(0, naive_layer_extractor);
 
         vec![(
-            ChannelHandler {sender, layer_extractors},
-            ChannelExporter {receiver, layers_metadata},
+            ChannelHandler {
+                sender,
+                layer_extractors,
+            },
+            ChannelExporter {
+                receiver,
+                layers_metadata,
+            },
         )]
     }
 
@@ -130,13 +135,11 @@ impl StaticImgDispatcher {
     }
 }
 
-
 fn naive_layer_extractor(img: &RgbImage24BitSlice) -> Array2<u8> {
     let grayscale = colorops::grayscale(img);
     Array::from_shape_vec(
-        (img.width() as usize, img.height() as usize)
-            .strides((1, img.width() as usize)),
-        grayscale.into_raw()
+        (img.width() as usize, img.height() as usize).strides((1, img.width() as usize)),
+        grayscale.into_raw(),
     ).unwrap()
 }
 
@@ -144,6 +147,7 @@ fn naive_layer_extractor(img: &RgbImage24BitSlice) -> Array2<u8> {
 mod tests {
     use super::*;
     use image;
+    use test_utils::*;
 
     #[test]
     fn test_naive_layer_extractor() {
@@ -163,6 +167,14 @@ mod tests {
         let full_size_slice = buffer.sub_image(0, 0, width, height);
 
         let extracted_layer = naive_layer_extractor(&full_size_slice);
+
+        #[rustfmt_skip]
+        let expected_layer_array = array![
+            [0, 3],
+            [1, 4],
+            [2, 5]
+        ];
+        assert_img_data_eq_by_element(extracted_layer.view(), expected_layer_array.view());
 
         assert_eq!(extracted_layer.len_of(Axis(0)), width as usize);
         assert_eq!(extracted_layer.len_of(Axis(1)), height as usize);

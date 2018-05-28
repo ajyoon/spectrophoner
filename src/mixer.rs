@@ -44,6 +44,7 @@ pub fn mix(receivers: Vec<Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<V
 
     thread::Builder::new().name("mixer::mix()".to_string()).spawn(move || {
         loop {
+            // let sw = Stopwatch::start_new();
             let mut combined_samples: Vec<f32> = Vec::new();
             for receiver in &receivers {
                 let chunk = receiver.recv().unwrap();
@@ -51,6 +52,7 @@ pub fn mix(receivers: Vec<Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<V
             }
             compress(&mut combined_samples, expected_max_amp);
             mixed_chunk_sender.send(combined_samples).unwrap();
+            // println!("mixed samples in {:?}", sw.elapsed());
         }
     });
 
@@ -67,7 +69,7 @@ mod tests {
         let mut dest = vec![];
         let src = vec![1., 2.];
         add_chunk_to_maybe_empty(&src, &mut dest);
-        assert_array_almost_eq_by_element(dest, vec![1., 2.]);
+        assert_almost_eq_by_element(dest, vec![1., 2.]);
     }
 
     #[test]
@@ -75,7 +77,7 @@ mod tests {
         let mut dest = vec![1.1, 2.2];
         let src = vec![1., 2.];
         add_chunk_to(&src, &mut dest);
-        assert_array_almost_eq_by_element(dest, vec![2.1, 4.2]);
+        assert_almost_eq_by_element(dest, vec![2.1, 4.2]);
     }
 
     #[test]
@@ -83,7 +85,7 @@ mod tests {
         let mut samples = vec![-100., 0., 100.];
         compress(&mut samples, 100.);
 
-        assert_array_almost_eq_by_element(samples, vec![-1., 0., 1.,]);
+        assert_almost_eq_by_element(samples, vec![-1., 0., 1.,]);
     }
 }
 
