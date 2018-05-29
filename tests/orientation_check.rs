@@ -50,10 +50,13 @@ fn orientation_check() {
 
     #[rustfmt_skip]
     let expected_layer_array = array![
-        [0, 0, 0],
+        [0,   0, 255],
         [255, 0, 0],
-        [0, 0, 255]
+        [0,   0, 0]
     ];
+
+    assert_eq!(extracted_layer.get((1, 0)).unwrap(), &255u8);
+    assert_eq!(extracted_layer.get((0, 2)).unwrap(), &255u8);
 
     assert_img_data_eq_by_element(extracted_layer.view(), expected_layer_array.view());
 }

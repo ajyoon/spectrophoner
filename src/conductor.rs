@@ -11,18 +11,20 @@ use img_interpreter::{ImgInterpreter, SectionInterpreter, SectionInterpreterGene
 use mixer;
 use mixer::Chunk;
 use synth::{Oscillator, Waveform};
+use pitch;
 
 const SAMPLE_RATE: u32 = 44100;
 
-const TEMP_HARDCODED_SAMPLES_PER_PIXEL: usize = 441;
+const TEMP_HARDCODED_SAMPLES_PER_PIXEL: usize = 4410;
 const TEMP_HARDCODED_IMG_CHUNK_WIDTH: u32 = 100;
-const TEMP_HARDCODED_OSC_COUNT: usize = 100;
+const TEMP_HARDCODED_OSC_COUNT: usize = 20;
 
 /// hacky testing for now
 pub fn conduct() {
     // let img_path = Path::new("resources/horizontal_line.png");
-    // let img_path = Path::new("resources/ascending_line.png");
-    let img_path = Path::new("resources/flipped.png");
+    let img_path = Path::new("resources/ascending_line.png");
+    // let img_path = Path::new("resources/flipped.png");
+    // let img_path = Path::new("resources/starting_loud.bmp");
     let (mut img_dispatcher, channel_exporters) = StaticImgDispatcher::new(
         img_path, TEMP_HARDCODED_IMG_CHUNK_WIDTH);
 
@@ -81,13 +83,14 @@ fn naive_section_interpreter_generator(
 ) -> Vec<SectionInterpreter> {
     let mut section_interpreters = Vec::<SectionInterpreter>::new();
 
+    let mut frequencies = pitch::harmonic_series(23.5, TEMP_HARDCODED_OSC_COUNT);
+    frequencies.reverse();
+
     for i in 0..TEMP_HARDCODED_OSC_COUNT {
         let offset = (i as f32) / (TEMP_HARDCODED_OSC_COUNT as f32);
         let offset_y_pos_ratio = y_pos_ratio + offset;
         let offset_height_ratio = height_ratio + offset;
-        let freq = offset_height_ratio * 440.;
-        let oscillator = Oscillator::new(Waveform::Sine, freq, SAMPLE_RATE);
-        println!("oscillator freq: {:?}", freq);
+        let oscillator = Oscillator::new(Waveform::Square, frequencies[i], SAMPLE_RATE);
         let y_start = clamp(
             (offset_y_pos_ratio * (total_img_height as f32)) as usize,
             0,

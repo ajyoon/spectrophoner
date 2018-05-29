@@ -44,7 +44,7 @@ fn populate_square_period(period: &mut Vec<f32>) {
 
 impl PeriodGenerator for Waveform {
     fn generate_period(&self, frequency: f32, sample_rate: u32) -> Vec<f32> {
-        debug_assert!(frequency > 0.);
+        assert!(frequency > 0., "Invalid frequency: {}", frequency);
         let samples_needed = period_length(frequency, sample_rate);
         let mut period = Vec::<f32>::with_capacity(samples_needed as usize);
 

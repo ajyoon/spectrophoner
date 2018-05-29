@@ -17,6 +17,7 @@ pub mod mixer;
 pub mod sample_buffer;
 pub mod synth;
 pub mod conductor;
+mod pitch;
 
 #[cfg(test)]
 mod test_utils;
