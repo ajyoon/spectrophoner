@@ -40,8 +40,7 @@ where T: portaudio::Sample {
         let queued_received_samples = Arc::new(RefCell::new(initial_queue_buffer));
 
         let callback = move |args: portaudio::OutputStreamCallbackArgs<T>| {
-            fill_pa_buffer(&queued_received_samples, &chunk_receiver, args.buffer);
-            portaudio::Continue
+            fill_pa_buffer(&queued_received_samples, &chunk_receiver, args.buffer)
         };
 
         let mut stream = self
@@ -60,7 +59,7 @@ fn fill_pa_buffer<T>(
     queued_received_samples: &Arc<RefCell<SampleBuffer<T>>>,
     chunk_receiver: &Receiver<Vec<T>>,
     out_buffer: &mut [T],
-) {
+) -> portaudio::stream::CallbackResult {
     let mut queued_samples = queued_received_samples.borrow_mut();
     let mut buffer_index = 0;
     loop {
@@ -68,7 +67,7 @@ fn fill_pa_buffer<T>(
         if queued_elements_remaining >= out_buffer.len() - buffer_index {
             // Enough samples in the queue to fill the buffer completely
             queued_samples.consume_into(&out_buffer[buffer_index..]);
-            return;
+            return portaudio::stream::CallbackResult::Continue;
         }
 
         // Not enough samples in the queue to fill the buffer, but take what we can
@@ -77,10 +76,9 @@ fn fill_pa_buffer<T>(
 
         buffer_index += queued_elements_remaining;
 
-        // Fill the queue with a new received chunk
-        // let sw = Stopwatch::start_new();
-        let received_samples = chunk_receiver.recv().unwrap();
-        // println!("received samples in {:?}", sw.elapsed());
-        queued_samples.overwrite(received_samples);
+        match chunk_receiver.recv() {
+            Ok(samples)    => queued_samples.overwrite(samples),
+            Err(RecvError) => return portaudio::stream::CallbackResult::Complete
+        }
     }
 }
