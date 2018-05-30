@@ -4,7 +4,8 @@ use std::path::Path;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
-use audio;
+use audio_streamer::AudioStreamer;
+use portaudio_streamer::PortAudioStreamer;
 use img_dispatcher::{
     ChannelExporter, ImgLayerId, ImgLayerMetadata, ImgPacket, StaticImgDispatcher,
 };
@@ -56,7 +57,7 @@ pub fn conduct() {
         (TEMP_HARDCODED_OSC_COUNT as f32) * 0.15,
     );
 
-    audio::stream_to_device(mixed_samples_receiver);
+    PortAudioStreamer::new().stream(mixed_samples_receiver);
 }
 
 fn derive_img_interpreter(
