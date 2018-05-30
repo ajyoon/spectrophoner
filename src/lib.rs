@@ -8,6 +8,7 @@ extern crate image;
 extern crate ndarray;
 extern crate portaudio;
 extern crate stopwatch;
+extern crate hound;
 
 mod arrays;
 mod img_dispatcher;
@@ -18,6 +19,7 @@ mod synth;
 mod pitch;
 mod audio_streamer;
 mod portaudio_streamer;
+mod wav_streamer;
 
 pub mod conductor;
 
