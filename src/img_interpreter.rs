@@ -19,9 +19,6 @@ pub struct SectionInterpreter {
     last_amplitude: f32,
 }
 
-pub type SectionInterpreterGenerator =
-    fn(y_pos_ratio: f32, height_ratio: f32, total_img_height: usize) -> Vec<SectionInterpreter>;
-
 pub struct ImgInterpreter {
     img_packet_receiver: Receiver<ImgPacket>,
     samples_sender: Sender<Vec<f32>>,
@@ -72,30 +69,16 @@ impl SectionInterpreter {
 
 impl ImgInterpreter {
     pub fn new(
-        layers_metadata: Vec<ImgLayerMetadata>,
         img_packet_receiver: Receiver<ImgPacket>,
         samples_sender: Sender<Vec<f32>>,
         samples_per_pixel: usize,
-        section_interpreter_generators: HashMap<ImgLayerId, SectionInterpreterGenerator>,
+        layer_handlers: HashMap<ImgLayerId, Vec<SectionInterpreter>>,
     ) -> ImgInterpreter {
-        let mut layer_handlers = HashMap::<ImgLayerId, Vec<SectionInterpreter>>::new();
-
-        for metadata in layers_metadata {
-            let y_pos_ratio = metadata.y_start as f32 / metadata.total_img_height as f32;
-            let height_ratio =
-                (metadata.y_end - metadata.y_start) as f32 / metadata.total_img_height as f32;
-            let section_interpreters =
-                section_interpreter_generators
-                    .get(&metadata.img_layer_id)
-                    .unwrap()(y_pos_ratio, height_ratio, metadata.total_img_height);
-            layer_handlers.insert(metadata.img_layer_id, section_interpreters);
-        }
-
         ImgInterpreter {
-            img_packet_receiver,
-            samples_sender,
-            samples_per_pixel,
-            layer_handlers,
+        img_packet_receiver,
+        samples_sender,
+        samples_per_pixel,
+        layer_handlers,
         }
     }
 

@@ -1,3 +1,4 @@
+use std::cmp::Ordering::*;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -7,26 +8,23 @@ use audio;
 use img_dispatcher::{
     ChannelExporter, ImgLayerId, ImgLayerMetadata, ImgPacket, StaticImgDispatcher,
 };
-use img_interpreter::{ImgInterpreter, SectionInterpreter, SectionInterpreterGenerator};
+use img_interpreter::{ImgInterpreter, SectionInterpreter};
 use mixer;
 use mixer::Chunk;
-use synth::{Oscillator, Waveform};
 use pitch;
+use synth::{Oscillator, Waveform};
 
 const SAMPLE_RATE: u32 = 44100;
 
 const TEMP_HARDCODED_SAMPLES_PER_PIXEL: usize = 4410;
 const TEMP_HARDCODED_IMG_CHUNK_WIDTH: u32 = 100;
-const TEMP_HARDCODED_OSC_COUNT: usize = 20;
+const TEMP_HARDCODED_OSC_COUNT: usize = 60;
 
 /// hacky testing for now
 pub fn conduct() {
-    // let img_path = Path::new("resources/horizontal_line.png");
     let img_path = Path::new("resources/ascending_line.png");
-    // let img_path = Path::new("resources/flipped.png");
-    // let img_path = Path::new("resources/starting_loud.bmp");
-    let (mut img_dispatcher, channel_exporters) = StaticImgDispatcher::new(
-        img_path, TEMP_HARDCODED_IMG_CHUNK_WIDTH);
+    let (mut img_dispatcher, channel_exporters) =
+        StaticImgDispatcher::new(img_path, TEMP_HARDCODED_IMG_CHUNK_WIDTH);
 
     let mut interpreter_sample_receivers = Vec::<Receiver<Chunk>>::new();
 
@@ -53,8 +51,10 @@ pub fn conduct() {
         })
         .unwrap();
 
-    let mixed_samples_receiver = mixer::mix(interpreter_sample_receivers,
-                                            TEMP_HARDCODED_OSC_COUNT as f32);
+    let mixed_samples_receiver = mixer::mix(
+        interpreter_sample_receivers,
+        (TEMP_HARDCODED_OSC_COUNT as f32) * 0.15,
+    );
 
     audio::stream_to_device(mixed_samples_receiver);
 }
@@ -64,75 +64,68 @@ fn derive_img_interpreter(
     img_layers_receiver: Receiver<ImgPacket>,
     samples_sender: Sender<Vec<f32>>,
 ) -> ImgInterpreter {
-    let section_interpreter_generators =
-        derive_simple_section_interpreter_generators(&layers_metadata);
-
+    let layer_handlers = derive_layer_handlers(layers_metadata);
     ImgInterpreter::new(
-        layers_metadata,
         img_layers_receiver,
         samples_sender,
         TEMP_HARDCODED_SAMPLES_PER_PIXEL,
-        section_interpreter_generators,
+        layer_handlers,
     )
 }
 
-fn naive_section_interpreter_generator(
-    y_pos_ratio: f32,
-    height_ratio: f32,
-    total_img_height: usize,
+fn derive_layer_handlers(
+    layers_metadata: Vec<ImgLayerMetadata>,
+) -> HashMap<ImgLayerId, Vec<SectionInterpreter>> {
+    let mut layer_handlers = HashMap::new();
+    for layer_metadata in layers_metadata {
+        layer_handlers.insert(
+            layer_metadata.img_layer_id,
+            generate_naive_section_interpreters(layer_metadata),
+        );
+    }
+    layer_handlers
+}
+
+fn generate_naive_section_interpreters(
+    layer_metadata: ImgLayerMetadata,
 ) -> Vec<SectionInterpreter> {
     let mut section_interpreters = Vec::<SectionInterpreter>::new();
 
     let mut frequencies = pitch::harmonic_series(23.5, TEMP_HARDCODED_OSC_COUNT);
     frequencies.reverse();
 
+    let section_height = (layer_metadata.y_end - layer_metadata.y_start) / TEMP_HARDCODED_OSC_COUNT;
+
     for i in 0..TEMP_HARDCODED_OSC_COUNT {
-        let offset = (i as f32) / (TEMP_HARDCODED_OSC_COUNT as f32);
-        let offset_y_pos_ratio = y_pos_ratio + offset;
-        let offset_height_ratio = height_ratio + offset;
-        let oscillator = Oscillator::new(Waveform::Square, frequencies[i], SAMPLE_RATE);
         let y_start = clamp(
-            (offset_y_pos_ratio * (total_img_height as f32)) as usize,
-            0,
-            total_img_height,
+            layer_metadata.y_start + (section_height * i),
+            layer_metadata.y_start,
+            layer_metadata.y_end,
         );
         let y_end = clamp(
-            ((offset_y_pos_ratio + offset_height_ratio) * (total_img_height as f32)) as usize,
-            0,
-            total_img_height,
+            layer_metadata.y_start + (section_height * (i + 1)),
+            layer_metadata.y_start,
+            layer_metadata.y_end,
         );
+        let oscillator = Oscillator::new(Waveform::Square, frequencies[i], SAMPLE_RATE);
         section_interpreters.push(SectionInterpreter::new(oscillator, y_start, y_end));
         println!(
-            "start: {}, end: {}",
-            section_interpreters.last().unwrap().y_start,
-            section_interpreters.last().unwrap().y_end
+            "total_img_height: {}, y_start: {}, y_end: {}, frequency: {}",
+            layer_metadata.total_img_height, y_start, y_end, frequencies[i]
         );
     }
 
     section_interpreters
 }
 
-fn derive_simple_section_interpreter_generators(
-    layers_metadata: &Vec<ImgLayerMetadata>,
-) -> HashMap<ImgLayerId, SectionInterpreterGenerator> {
-    let mut generators: HashMap<ImgLayerId, SectionInterpreterGenerator> = HashMap::new();
-    for metadata in layers_metadata {
-        generators.insert(metadata.img_layer_id, naive_section_interpreter_generator);
+fn clamp<T: Ord>(val: T, min: T, max: T) -> T {
+    match val.cmp(&min) {
+        Less => min,
+        _ => match val.cmp(&max) {
+            Greater => max,
+            _ => val,
+        },
     }
-    generators
-}
-
-fn clamp<T>(val: T, min: T, max: T) -> T
-where
-    T: PartialOrd,
-{
-    if val < min {
-        return min;
-    }
-    if val > max {
-        return max;
-    }
-    return val;
 }
 
 #[cfg(test)]
