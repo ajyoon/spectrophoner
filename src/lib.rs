@@ -9,6 +9,7 @@ extern crate ndarray;
 extern crate portaudio;
 extern crate stopwatch;
 extern crate hound;
+extern crate num;
 
 mod arrays;
 mod img_dispatcher;
@@ -17,10 +18,11 @@ mod mixer;
 mod sample_buffer;
 mod synth;
 mod pitch;
-mod audio_streamer;
-mod portaudio_streamer;
-mod wav_streamer;
+mod color;
 
+pub mod audio_streamer;
+pub mod portaudio_streamer;
+pub mod wav_streamer;
 pub mod conductor;
 
 #[cfg(test)]

@@ -20,9 +20,10 @@ const SAMPLE_RATE: u32 = 44100;
 const TEMP_HARDCODED_SAMPLES_PER_PIXEL: usize = 4410;
 const TEMP_HARDCODED_IMG_CHUNK_WIDTH: u32 = 100;
 const TEMP_HARDCODED_OSC_COUNT: usize = 60;
+// const TEMP_HARDCODED_OSC_COUNT: usize = 500;
 
 /// hacky testing for now
-pub fn conduct() {
+pub fn conduct<T>(output_streamer: T) where T: AudioStreamer<f32> {
     let img_path = Path::new("resources/ascending_line.png");
     let (mut img_dispatcher, channel_exporters) =
         StaticImgDispatcher::new(img_path, TEMP_HARDCODED_IMG_CHUNK_WIDTH);
@@ -54,10 +55,10 @@ pub fn conduct() {
 
     let mixed_samples_receiver = mixer::mix(
         interpreter_sample_receivers,
-        (TEMP_HARDCODED_OSC_COUNT as f32) * 0.15,
+        (TEMP_HARDCODED_OSC_COUNT as f32) * 0.3,
     );
 
-    PortAudioStreamer::new().stream(mixed_samples_receiver);
+    output_streamer.stream(mixed_samples_receiver);
 }
 
 fn derive_img_interpreter(
@@ -92,7 +93,8 @@ fn generate_naive_section_interpreters(
 ) -> Vec<SectionInterpreter> {
     let mut section_interpreters = Vec::<SectionInterpreter>::new();
 
-    let mut frequencies = pitch::harmonic_series(23.5, TEMP_HARDCODED_OSC_COUNT);
+    let mut frequencies = pitch::harmonic_series(2., TEMP_HARDCODED_OSC_COUNT);
+
     frequencies.reverse();
 
     let section_height = (layer_metadata.y_end - layer_metadata.y_start) / TEMP_HARDCODED_OSC_COUNT;
@@ -108,12 +110,8 @@ fn generate_naive_section_interpreters(
             layer_metadata.y_start,
             layer_metadata.y_end,
         );
-        let oscillator = Oscillator::new(Waveform::Square, frequencies[i], SAMPLE_RATE);
+        let oscillator = Oscillator::new(Waveform::Sine, frequencies[i], SAMPLE_RATE);
         section_interpreters.push(SectionInterpreter::new(oscillator, y_start, y_end));
-        println!(
-            "total_img_height: {}, y_start: {}, y_end: {}, frequency: {}",
-            layer_metadata.total_img_height, y_start, y_end, frequencies[i]
-        );
     }
 
     section_interpreters

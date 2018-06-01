@@ -12,6 +12,8 @@ rand = "0.4.2"
 ndarray = "*"
 stopwatch = "0.0.7"
 hound = "*"
+num = "*"
+clap = "*"
 
 [lib]
 name = "spectrophoner"

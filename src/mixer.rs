@@ -47,8 +47,10 @@ pub fn mix(receivers: Vec<Receiver<Chunk>>, expected_max_amp: f32) -> Receiver<V
             // let sw = Stopwatch::start_new();
             let mut combined_samples: Vec<f32> = Vec::new();
             for receiver in &receivers {
-                let chunk = receiver.recv().unwrap();
-                add_chunk_to_maybe_empty(&chunk, &mut combined_samples);
+                match receiver.recv() {
+                    Ok(chunk) => add_chunk_to_maybe_empty(&chunk, &mut combined_samples),
+                    Err(RecvError) => return,
+                }
             }
             compress(&mut combined_samples, expected_max_amp);
             mixed_chunk_sender.send(combined_samples).unwrap();

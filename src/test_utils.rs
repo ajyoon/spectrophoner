@@ -45,7 +45,7 @@ pub fn assert_img_data_eq_by_element(left: ArrayView2<u8>, right: ArrayView2<u8>
 }
 
 pub fn assert_almost_eq(left: f32, right: f32) {
-    const F32_EPSILON: f32 = 1.0e-6;
+    const F32_EPSILON: f32 = 1.0e-4;
     assert!(
         (left - right).abs() < F32_EPSILON,
         "{} is not approximately equal to {}.",
