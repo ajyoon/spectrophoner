@@ -10,6 +10,7 @@ extern crate portaudio;
 extern crate stopwatch;
 extern crate hound;
 extern crate num;
+extern crate itertools;
 
 mod arrays;
 mod img_dispatcher;

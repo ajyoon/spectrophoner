@@ -14,6 +14,7 @@ stopwatch = "0.0.7"
 hound = "*"
 num = "*"
 clap = "*"
+itertools = "*"
 
 [lib]
 name = "spectrophoner"

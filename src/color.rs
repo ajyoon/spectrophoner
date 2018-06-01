@@ -21,21 +21,22 @@ pub fn color_distance(left: Rgb<u8>, right: Rgb<u8>) -> f32 {
     let g = left.data[1] as f32 - right.data[1] as f32;
     let b = left.data[2] as f32 - right.data[2] as f32;
 
-    let unscaled = (
-        ((2.0 + (r_mean / 256.0)) * r.powi(2))
-            + (4.0 * g.powi(2))
-            + ((2.0 + ((255.0 - r_mean) / 256.0)) * b.powi(2))
-    ).sqrt();
+    let unscaled = (((2.0 + (r_mean / 256.0)) * r.powi(2))
+        + (4.0 * g.powi(2))
+        + ((2.0 + ((255.0 - r_mean) / 256.0)) * b.powi(2)))
+        .sqrt();
     let scaled = unscaled / MAX_UNSCALED_DISTANCE;
     debug_assert!(scaled <= 1.0);
     return scaled;
 }
 
-
 #[cfg(test)]
 mod tests {
+    extern crate test;
     use super::*;
+    use itertools::Itertools;
     use test_utils::*;
+    use std::ops::Range;
 
     #[test]
     fn test_zero_distance() {
@@ -47,9 +48,23 @@ mod tests {
         assert_almost_eq(color_distance(rgb(0, 0, 0), rgb(255, 255, 255)), 1.);
     }
 
+    #[bench]
+    fn color_distances(b: &mut test::Bencher) {
+        // ~10.5m crunches per second on shitty linux box
+        b.iter(move || {
+            for channels in (0..6).map(|_| 2..=255)
+                .multi_cartesian_product()
+                .take(100_000)
+            {
+                test::black_box(color_distance(
+                    rgb(channels[0], channels[1], channels[2]),
+                    rgb(channels[3], channels[4], channels[5]),
+                ));
+            }
+        });
+    }
+
     fn rgb(r: u8, g: u8, b: u8) -> Rgb<u8> {
-        Rgb {
-            data: [r, g, b]
-        }
+        Rgb { data: [r, g, b] }
     }
 }
